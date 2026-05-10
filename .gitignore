@@ -17,6 +17,7 @@ build/
 
 # Переменные окружения
 .env
+**/.env
 .env.local
 .env.*.local
 .env.development.local
