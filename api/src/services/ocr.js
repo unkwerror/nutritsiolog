@@ -1,14 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
-import { setGlobalDispatcher } from 'undici'
-import { socksDispatcher } from 'fetch-socks'
+import { withRetry } from '../utils/retry.js'
 import { SYSTEM_INSTRUCTION, PARSE_PROMPT } from '../prompts/analysis.js'
-
-const proxyUrl = new URL(process.env.SOCKS_PROXY)
-setGlobalDispatcher(socksDispatcher({
-    type: 5,
-    host: proxyUrl.hostname,
-    port: Number(proxyUrl.port)
-}))
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -20,7 +12,7 @@ const ai = new GoogleGenAI({
 
 
 export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash",
         config: {
             systemInstruction: SYSTEM_INSTRUCTION,
@@ -32,8 +24,8 @@ export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
                 {inlineData: { mimeType, data: fileBuffer.toString('base64')}}
             ]
         }]
-    })
-    
+    }))
+
     try {
         return JSON.parse(response.text)
     } catch {
@@ -43,7 +35,7 @@ export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
 }
 
 export async function parseLabResults(files) {
-    const promises = files.map(file => 
+    const promises = files.map(file =>
         parseLabResult(file.buffer, file.mimeType)
     )
     
