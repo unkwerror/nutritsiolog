@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
+
 import { withRetry } from '../utils/retry.js'
 import { SYSTEM_INSTRUCTION, PARSE_PROMPT } from '../prompts/analysis.js'
+import { validateLabResult } from '../utils/validateLabResult.js'
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -28,7 +30,8 @@ export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
     }))
 
     try {
-        return JSON.parse(response.text)
+        const parsed = JSON.parse(response.text)
+        return validateLabResult(parsed)
     } catch {
         console.error('Raw Gemini response:', response.text)
         throw new Error('Failed to parse Gemini response')
