@@ -1,26 +1,19 @@
-import { GoogleGenAI } from '@google/genai' 
+import { GoogleGenAI } from '@google/genai'
+import { setGlobalDispatcher } from 'undici'
 import { socksDispatcher } from 'fetch-socks'
-
 import { SYSTEM_INSTRUCTION, PARSE_PROMPT } from '../prompts/analysis.js'
 
-
 const proxyUrl = new URL(process.env.SOCKS_PROXY)
-
-const dispatcher = socksDispatcher({
+setGlobalDispatcher(socksDispatcher({
     type: 5,
     host: proxyUrl.hostname,
     port: Number(proxyUrl.port)
-})
+}))
 
 const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-httpOptions: {
-    fetch: (url, options) => {
-        console.log('proxy fetch called:', url)
-        return fetch(url, {...options, dispatcher})
-        }
-    }
+    apiKey: process.env.GEMINI_API_KEY
 })
+
 
 export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
     const response = await ai.models.generateContent({
