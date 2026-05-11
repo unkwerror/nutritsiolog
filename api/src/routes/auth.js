@@ -21,7 +21,18 @@ export default async function authRoutes(fastify) {
         try {
             const hash = await bcrypt.hash(password, 10)
             const [user] = await db.insert(users).values({email, password: hash}).returning()
-            return {id: user.id, email: user.email}
+            
+            const token = fastify.jwt.sign({id: user.id, email: user.email})
+
+            return reply
+                .setCookie('token', token, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'strict',
+                    path: '/'
+                })
+                .send({id: user.id, email: user.email})
+                
         } catch (err) {
             if(err.cause?.code === '23505'){
                 return reply.code(409).send({error: 'Email already in use'})
@@ -52,7 +63,14 @@ export default async function authRoutes(fastify) {
             if(!valid) return reply.code(401).send({error: 'Invalid email or password'})
         
         const token = fastify.jwt.sign({id: user.id, email: user.email})
-        return {token}
+        return reply
+            .setCookie('token', token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'strict',
+                path: '/'
+            })
+            .send({ok: true})
 
     })
 }

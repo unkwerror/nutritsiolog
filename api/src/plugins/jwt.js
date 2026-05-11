@@ -1,10 +1,26 @@
 import fp from 'fastify-plugin'
 import jwt from '@fastify/jwt'
+import cookie from '@fastify/cookie'
 
 async function jwtPlugin(fastify) {
+    fastify.register(cookie)
+
     fastify.register(jwt, {
-        secret: process.env.JWT_SECRET
+        secret: process.env.JWT_SECRET,
+        cookie: {
+            cookieName: 'token',
+            signed: false
+        }
+    })
+
+    fastify.decorate('authenticate', async (request, reply) => {
+        try {
+            await request.jwtVerify()
+        } catch (err) {
+            reply.send(err)
+        }
     })
 }
+
 
 export default fp(jwtPlugin)
