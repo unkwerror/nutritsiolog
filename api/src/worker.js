@@ -13,10 +13,12 @@ const db = drizzle(sql)
 
 new Worker('analysis', async (job) => {
     const { analysisId, fileKey, mimeType } = job.data
+    console.log(`[worker] job ${job.id} started — analysisId: ${analysisId}`)
 
     try {
         const buffer = await getFileBuffer(fileKey)
         const result = await parseLabResult(buffer, mimeType)
+        console.log(`[worker] parsed ${result.markers.length} markers`)
 
         await db.transaction(async (tx) => {
             await tx.insert(markers).values(
@@ -41,6 +43,8 @@ new Worker('analysis', async (job) => {
                 .set({ status: 'done', updatedAt: new Date() })
                 .where(eq(analyses.id, analysisId))
         })
+
+        console.log(`[worker] job ${job.id} done`)
 
     } catch (err) {
         await db.update(analyses)
