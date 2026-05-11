@@ -11,8 +11,12 @@ setGlobalDispatcher(socksDispatcher({
 }))
 
 const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+        headers: { 'Accept-Encoding': 'identity' }
+    }
 })
+
 
 
 export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
