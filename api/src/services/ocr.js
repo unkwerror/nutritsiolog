@@ -14,8 +14,11 @@ const dispatcher = socksDispatcher({
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: {
-        fetch: (url, options) => fetch(url, {...options, dispatcher})
+httpOptions: {
+    fetch: (url, options) => {
+        console.log('proxy fetch called:', url)
+        return fetch(url, {...options, dispatcher})
+        }
     }
 })
 
