@@ -16,7 +16,8 @@ export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
         model: "gemini-2.5-flash",
         config: {
             systemInstruction: SYSTEM_INSTRUCTION,
-            responseMimeType: 'application/json'
+            responseMimeType: 'application/json',
+            temperature: 0
         },
         contents: [{
             parts: [
