@@ -8,6 +8,13 @@
       "when": 1778616984533,
       "tag": "0000_fluffy_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778620777062,
+      "tag": "0001_curious_marauders",
+      "breakpoints": true
     }
   ]
 }

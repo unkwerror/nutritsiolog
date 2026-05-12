@@ -6,12 +6,6 @@ import { uploadFile } from '../services/storage.js'
 import { analysisQueue } from '../queues/analysisQueue.js'
 
 
-declare module '@fastify/jwt' {
-    interface FastifyJWT {
-        user: { id: string; email: string | null }
-    }
-}
-
 
 export default async function analysisRoutes(fastify: FastifyInstance) {
 

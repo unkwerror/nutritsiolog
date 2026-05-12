@@ -21,7 +21,7 @@ export const users = pgTable('users', {
     emailVerifiedAt: timestamp('email_verified_at'),
     phoneVerifiedAt: timestamp('phone_verified_at'),
 
-    password:          varchar('password', { length: 255 }).notNull(),
+    password:          varchar('password', { length: 255 }),
     consentPd:         boolean('consent_pd').notNull().default(false),
     consentMedicalData: boolean('consent_medical_data').notNull().default(false),
 

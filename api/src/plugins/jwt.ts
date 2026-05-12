@@ -11,16 +11,17 @@ declare module 'fastify' {
     }
 }
 
+declare module '@fastify/jwt' {
+    interface FastifyJWT {
+        user: { id: string; email: string | null }
+    }
+}
+
 async function jwtPlugin(fastify: FastifyInstance) {
     fastify.register(cookie)
 
-    fastify.register(jwt, {
-        secret: config.JWT_SECRET,
-        cookie: {
-            cookieName: 'token',
-            signed: false
-        }
-    })
+    // Access token — только Authorization: Bearer header
+    fastify.register(jwt, { secret: config.JWT_SECRET })
 
     fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
         try {

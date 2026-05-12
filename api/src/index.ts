@@ -7,7 +7,7 @@ import multipart from '@fastify/multipart'
 
 import dbPlugin       from './plugins/db.js'
 import jwtPlugin      from './plugins/jwt.js'
-import authRoutes     from './routes/auth.js'
+import authRoutes     from './modules/auth/routes.js'
 import analysisRoutes from './routes/analysis.js'
 import healthRoutes   from './routes/health.js'
 import { ensureBucket } from './services/storage.js'
@@ -32,8 +32,8 @@ app.register(errorHandler)
 
 // роуты
 app.register(healthRoutes)
-app.register(authRoutes,     { prefix: '/api' })
-app.register(analysisRoutes, { prefix: '/api' })
+app.register(authRoutes,     { prefix: '/api/v1' })
+app.register(analysisRoutes, { prefix: '/api/v1' })
 
 process.on('SIGTERM', async () => {
     app.log.info('SIGTERM received, shutting down')

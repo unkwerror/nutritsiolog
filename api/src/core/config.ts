@@ -23,6 +23,12 @@ const ConfigSchema = z.object({
 
     CORS_ORIGIN: z.string().default('http://localhost:3000'),
     LOG_LEVEL:   z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
+
+    SMTP_HOST: z.string().default('localhost'),
+    SMTP_PORT: z.coerce.number().default(1025),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().default('noreply@nutritsiolog.local'),
 })
 
 export type Config = z.infer<typeof ConfigSchema>
