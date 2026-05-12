@@ -24,17 +24,8 @@ app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
 
 // security
-app.register(helmet, {
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc:     ["'self'"],
-            scriptSrc:      ["'self'", "'unsafe-inline'"],
-            styleSrc:       ["'self'", "'unsafe-inline'"],
-            imgSrc:         ["'self'", "data:"],
-            workerSrc:      ["'self'", "blob:"],
-        }
-    }
-})
+// CSP отключён — настраивается на уровне Nginx в prod (там же терминация TLS)
+app.register(helmet, { contentSecurityPolicy: false })
 app.register(cors,      { origin: config.CORS_ORIGIN })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 
