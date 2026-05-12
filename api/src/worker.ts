@@ -23,6 +23,21 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
 
     log.info('job started')
 
+    // Idempotency: если job уже обработан (retry после успешного commit) — пропускаем
+    const [current] = await db.select({ status: analyses.status })
+        .from(analyses)
+        .where(eq(analyses.id, analysisId))
+
+    if (!current) {
+        log.warn('analysis not found, skipping')
+        return
+    }
+
+    if (current.status === 'done') {
+        log.info('already processed, skipping')
+        return
+    }
+
     try {
         const buffer = await getFileBuffer(fileKey)
         const result = await ocrService.parseLabResult(buffer, mimeType)
@@ -44,7 +59,7 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
                     isOutOfRange:        marker.isOutOfRange,
                     outOfRangeDirection: marker.outOfRangeDirection,
                     comment:             marker.comment,
-                    method:              marker.method
+                    method:              marker.method,
                 }))
             )
 
@@ -61,7 +76,7 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
                     orderId:          result.order?.id,
                     sampleTakenAt:    result.order?.sampleTakenAt,
                     reportDate:       result.order?.reportDate,
-                    updatedAt:        new Date()
+                    updatedAt:        new Date(),
                 })
                 .where(eq(analyses.id, analysisId))
         })
@@ -77,10 +92,9 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
     }
 
 }, {
-    connection: {
-        host: config.REDIS_HOST,
-        port: config.REDIS_PORT
-    }
+    connection: { host: config.REDIS_HOST, port: config.REDIS_PORT },
+    concurrency: 1,
+    limiter: { max: 10, duration: 60_000 },
 })
 
 process.on('SIGTERM', async () => {

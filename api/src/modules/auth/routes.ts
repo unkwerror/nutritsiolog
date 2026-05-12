@@ -1,4 +1,5 @@
 import { randomUUID }           from 'node:crypto'
+import { z }                     from 'zod'
 import { type FastifyInstance }  from 'fastify'
 import { redis }                 from '../../core/redis.js'
 import { config }                from '../../core/config.js'
@@ -7,34 +8,36 @@ import { UsersRepository }       from './repository.js'
 import { AuthService }           from './service.js'
 import { RequestOtpSchema, VerifyOtpSchema } from './schemas.js'
 
-const REFRESH_TTL_SEC = 30 * 24 * 3600  // 30 дней
+const REFRESH_TTL_SEC = 30 * 24 * 3600
 const ACCESS_TTL      = '15m'
 
 export default async function authRoutes(fastify: FastifyInstance) {
 
-    fastify.post('/auth/request-otp', async (request, reply) => {
-        const body    = RequestOtpSchema.parse(request.body)
+    fastify.post('/auth/request-otp', {
+        schema: {
+            tags: ['Auth'],
+            body: RequestOtpSchema,
+            response: { 200: z.object({ isNewUser: z.boolean() }) },
+        }
+    }, async (request, reply) => {
         const service = new AuthService(new UsersRepository(request.server.db))
-
-        const { isNewUser } = await service.requestOtp(body)
+        const { isNewUser } = await service.requestOtp(request.body as never)
         return reply.code(200).send({ isNewUser })
     })
 
-    fastify.post('/auth/verify-otp', async (request, reply) => {
-        const body    = VerifyOtpSchema.parse(request.body)
+    fastify.post('/auth/verify-otp', {
+        schema: {
+            tags: ['Auth'],
+            body: VerifyOtpSchema,
+            response: { 200: z.object({ accessToken: z.string() }) },
+        }
+    }, async (request, reply) => {
         const service = new AuthService(new UsersRepository(request.server.db))
+        const user    = await service.verifyOtp(request.body as never)
 
-        const user = await service.verifyOtp(body)
-
-        const accessToken  = fastify.jwt.sign(
-            { id: user.id, email: user.email },
-            { expiresIn: ACCESS_TTL }
-        )
+        const accessToken  = fastify.jwt.sign({ id: user.id, email: user.email }, { expiresIn: ACCESS_TTL })
         const jti          = randomUUID()
-        const refreshToken = fastify.jwt.sign(
-            { id: user.id, email: user.email, jti },
-            { expiresIn: '30d' }
-        )
+        const refreshToken = fastify.jwt.sign({ id: user.id, email: user.email, jti }, { expiresIn: '30d' })
 
         await redis.setex(`refresh:${jti}`, REFRESH_TTL_SEC, user.id)
 
@@ -49,7 +52,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return { accessToken }
     })
 
-    fastify.post('/auth/refresh', async (request, reply) => {
+    fastify.post('/auth/refresh', {
+        schema: {
+            tags: ['Auth'],
+            response: { 200: z.object({ accessToken: z.string() }) },
+        }
+    }, async (request, reply) => {
         const token = request.cookies?.refreshToken
         if (!token) throw new UnauthorizedError('UNAUTHORIZED')
 
@@ -63,14 +71,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const userId = await redis.get(`refresh:${payload.jti}`)
         if (!userId) throw new UnauthorizedError('UNAUTHORIZED')
 
-        const accessToken = fastify.jwt.sign(
-            { id: payload.id, email: payload.email },
-            { expiresIn: ACCESS_TTL }
-        )
+        const accessToken = fastify.jwt.sign({ id: payload.id, email: payload.email }, { expiresIn: ACCESS_TTL })
         return { accessToken }
     })
 
-    fastify.post('/auth/logout', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    fastify.post('/auth/logout', {
+        schema: {
+            tags: ['Auth'],
+            security: [{ bearerAuth: [] }],
+            response: { 200: z.object({ ok: z.boolean() }) },
+        },
+        preHandler: [fastify.authenticate],
+    }, async (request, reply) => {
         const token = request.cookies?.refreshToken
         if (token) {
             try {
