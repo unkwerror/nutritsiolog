@@ -1,22 +1,38 @@
 #!/bin/bash
 set -e
 
-cd /home/mun/nutritsiolog/api
+APP_DIR="/home/mun/nutritsiolog/api"
 
-echo "Pulling latest changes..."
-git pull
+cd "$APP_DIR"
 
-echo "Installing dependencies..."
+# Проверка .env
+if [ ! -f .env ]; then
+    echo "ERROR: .env file not found in $APP_DIR"
+    exit 1
+fi
+
+echo "==> Pulling latest changes..."
+git -C /home/mun/nutritsiolog pull origin main
+
+echo "==> Installing dependencies..."
 npm ci
 
-echo "Building..."
+echo "==> Building TypeScript..."
 npm run build
 
-echo "Pruning dev dependencies..."
+echo "==> Running migrations..."
+npx drizzle-kit migrate
+
+echo "==> Pruning dev dependencies..."
 npm prune --omit=dev
 
-echo "Reloading processes..."
-pm2 reload ecosystem.config.cjs --update-env
+echo "==> Reloading processes..."
+if pm2 list | grep -q "nutritsiolog-api"; then
+    pm2 reload ecosystem.config.cjs --update-env
+else
+    pm2 start ecosystem.config.cjs
+    pm2 save
+fi
 
-echo "Done."
+echo "==> Done."
 pm2 status
