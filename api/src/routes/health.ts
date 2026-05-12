@@ -1,8 +1,9 @@
 import { sql }           from 'drizzle-orm'
+import { type FastifyInstance } from 'fastify'
 import { analysisQueue } from '../queues/analysisQueue.js'
 import { ensureBucket }  from '../services/storage.js'
 
-export default async function healthRoutes(fastify) {
+export default async function healthRoutes(fastify: FastifyInstance) {
     fastify.get('/health', async (request, reply) => {
         let pg    = false
         let redis = false

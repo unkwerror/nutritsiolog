@@ -1,18 +1,25 @@
 import './utils/proxy.js'
-import { Worker } from 'bullmq'
-import { drizzle } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
-import { eq } from 'drizzle-orm'
+import { Worker }   from 'bullmq'
+import { drizzle }  from 'drizzle-orm/postgres-js'
+import postgres      from 'postgres'
+import { eq }        from 'drizzle-orm'
 
-import { getFileBuffer }           from './services/storage.js'
-import { parseLabResult }          from './services/ocr.js'
-import { analyses, markers }       from './db/schema.js'
-import logger                      from './utils/logger.js'
+import { getFileBuffer } from './services/storage.js'
+import { parseLabResult } from './services/ocr.js'
+import { analyses, markers } from './db/schema.js'
+import { config }  from './core/config.js'
+import logger      from './utils/logger.js'
 
-const sql = postgres(process.env.DATABASE_URL)
+type AnalysisJobData = {
+    analysisId: number
+    fileKey:    string
+    mimeType:   string
+}
+
+const sql = postgres(config.DATABASE_URL)
 const db  = drizzle(sql)
 
-const worker = new Worker('analysis', async (job) => {
+const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
     const { analysisId, fileKey, mimeType } = job.data
     const log = logger.child({ jobId: job.id, analysisId })
 
@@ -73,8 +80,8 @@ const worker = new Worker('analysis', async (job) => {
 
 }, {
     connection: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT)
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT
     }
 })
 

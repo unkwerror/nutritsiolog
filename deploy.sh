@@ -7,7 +7,13 @@ echo "Pulling latest changes..."
 git pull
 
 echo "Installing dependencies..."
-npm install --omit=dev
+npm ci
+
+echo "Building..."
+npm run build
+
+echo "Pruning dev dependencies..."
+npm prune --omit=dev
 
 echo "Reloading processes..."
 pm2 reload ecosystem.config.cjs --update-env

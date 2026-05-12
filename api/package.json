@@ -3,11 +3,16 @@
   "type": "module",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --env-file=.env src/index.js",
-    "dev": "node --watch  --env-file=.env src/index.js"
+    "build": "tsc",
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "node --env-file=.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "keywords": [],
   "author": "",
@@ -19,9 +24,9 @@
     "@fastify/jwt": "^10.0.0",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^10.3.0",
-    "@google/genai": "^2.0.1",
+    "@google/genai": "^2.1.0",
     "bcrypt": "^6.0.0",
-    "bullmq": "^5.76.7",
+    "bullmq": "^5.76.8",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
     "fastify-plugin": "^5.1.0",
@@ -32,6 +37,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10"
+    "@types/bcrypt": "^6.0.0",
+    "@types/node": "^24.12.4",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
   }
 }

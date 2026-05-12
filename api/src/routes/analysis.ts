@@ -2,14 +2,24 @@ import { eq, and } from 'drizzle-orm'
 import { analyses } from '../db/schema.js'
 import { uploadFile } from '../services/storage.js'
 import { analysisQueue } from '../queues/analysisQueue.js'
+import { type FastifyInstance } from 'fastify'
+import '@fastify/multipart'
 
-export default async function analysisRoutes(fastify) {
+
+declare module '@fastify/jwt' {
+    interface FastifyJWT {
+        user: { id: string; email: string | null }
+    }
+}
+
+
+export default async function analysisRoutes(fastify: FastifyInstance) {
 
     fastify.post('/analysis/upload', { preHandler: [fastify.authenticate] }, async (request, reply) => {
         const { db } = request.server
         const userId = request.user.id
 
-        const parts = []
+        const parts: Array<{ buffer: Buffer; mimeType: string; originalName: string }> = []
         for await (const part of request.files()) {
             const buffer = await part.toBuffer()
             parts.push({ buffer, mimeType: part.mimetype, originalName: part.filename })
@@ -18,7 +28,7 @@ export default async function analysisRoutes(fastify) {
         if (parts.length === 0)
             return reply.code(400).send({ error: 'Nothing uploaded' })
 
-        const results = []
+        const results: Array<{ analysisId: number; status: string }> = []
 
         for (const file of parts) {
             const fileKey = await uploadFile(file.buffer, file.originalName, file.mimeType)
@@ -32,6 +42,8 @@ export default async function analysisRoutes(fastify) {
                 status:           'pending'
             }).returning()
 
+            if (!analysis) throw new Error('Insert returned no rows')
+
             await analysisQueue.add('parse', {
                 analysisId: analysis.id,
                 fileKey,
@@ -44,7 +56,7 @@ export default async function analysisRoutes(fastify) {
         return reply.code(202).send(results.length === 1 ? results[0] : results)
     })
 
-    fastify.get('/analysis/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    fastify.get<{ Params: { id: string } }>('/analysis/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
         const { db } = request.server
         const { id } = request.params
 

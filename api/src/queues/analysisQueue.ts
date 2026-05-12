@@ -1,8 +1,10 @@
 import { Queue } from 'bullmq'
 
+import { config } from '../core/config.js'
+
 export const analysisQueue = new Queue('analysis', {
     connection: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT)
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT
     }
 })

@@ -1,18 +1,19 @@
 import { GoogleGenAI } from '@google/genai'
 
-import { withRetry }                    from '../utils/retry.js'
-import { SYSTEM_INSTRUCTION, PARSE_PROMPT } from '../prompts/analysis.js'
-import { validateLabResult }            from '../utils/validateLabResult.js'
-import logger                           from '../utils/logger.js'
+import { config }                            from '../core/config.js'
+import { withRetry }                         from '../utils/retry.js'
+import { SYSTEM_INSTRUCTION, PARSE_PROMPT }  from '../prompts/analysis.js'
+import { validateLabResult, type LabResult } from '../utils/validateLabResult.js'
+import logger                                from '../utils/logger.js'
 
 const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
+    apiKey: config.GEMINI_API_KEY,
     httpOptions: {
         headers: { 'Accept-Encoding': 'identity' }
     }
 })
 
-export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
+export async function parseLabResult(fileBuffer: Buffer, mimeType = 'application/pdf'): Promise<LabResult> {
     const response = await withRetry(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         config: {
@@ -29,7 +30,7 @@ export async function parseLabResult(fileBuffer, mimeType = 'application/pdf') {
     }))
 
     try {
-        const parsed = JSON.parse(response.text)
+        const parsed = JSON.parse(response.text ?? '')
         return validateLabResult(parsed)
     } catch (err) {
         logger.error({ err, rawResponse: response.text }, 'Failed to parse Gemini response')

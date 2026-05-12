@@ -41,7 +41,11 @@ const labResultSchema = z.object({
     markers: z.array(markerSchema)
 })
 
-function correctMarker(marker) {
+export type Marker    = z.infer<typeof markerSchema>
+export type LabResult = z.infer<typeof labResultSchema>
+
+
+function correctMarker(marker: Marker): Marker {
     if (marker.value === null) return marker
 
     const tooLow = marker.referenceMin !== null && marker.value < marker.referenceMin
@@ -57,7 +61,7 @@ function correctMarker(marker) {
     }
 }
 
-export function validateLabResult(raw) {
+export function validateLabResult(raw: unknown): LabResult {
     const result = labResultSchema.safeParse(raw)
     if (!result.success) {
         throw new Error(`Invalid Gemini response: ${result.error.message}`)

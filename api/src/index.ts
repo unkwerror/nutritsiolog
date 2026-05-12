@@ -1,5 +1,5 @@
 import './utils/proxy.js'
-import Fastify from 'fastify'
+import Fastify   from 'fastify'
 import helmet    from '@fastify/helmet'
 import cors      from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
@@ -11,13 +11,14 @@ import authRoutes     from './routes/auth.js'
 import analysisRoutes from './routes/analysis.js'
 import healthRoutes   from './routes/health.js'
 import { ensureBucket } from './services/storage.js'
-import logger from './utils/logger.js'
+import { config }       from './core/config.js'
+import logger           from './utils/logger.js'
 
 const app = Fastify({ loggerInstance: logger })
 
 // security — регистрируем первыми, чтобы заголовки применялись ко всем роутам
 app.register(helmet)
-app.register(cors,      { origin: process.env.CORS_ORIGIN || 'http://localhost:3000' })
+app.register(cors,      { origin: config.CORS_ORIGIN })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 
 // инфраструктура
@@ -44,9 +45,9 @@ process.on('SIGTERM', async () => {
 const start = async () => {
     try {
         await ensureBucket()
-        await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' })
+        await app.listen({ port: config.PORT, host: '0.0.0.0' })
     } catch (err) {
-        app.log.error(err)
+        app.log.error({ err }, 'Failed to start')
         process.exit(1)
     }
 }

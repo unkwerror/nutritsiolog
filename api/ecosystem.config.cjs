@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: 'nutritsiolog-api',
-            script: 'src/index.js',
+            script: 'dist/index.js',
             cwd: '/home/mun/nutritsiolog/api',
             interpreter: 'node',
             interpreter_args: '--env-file=.env',
@@ -14,7 +14,7 @@ module.exports = {
         },
         {
             name: 'nutritsiolog-worker',
-            script: 'src/worker.js',
+            script: 'dist/worker.js',
             cwd: '/home/mun/nutritsiolog/api',
             interpreter: 'node',
             interpreter_args: '--env-file=.env',

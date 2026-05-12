@@ -62,3 +62,15 @@ export const markers = pgTable('markers', {
     comment: text('comment'),
     method:  varchar('method', { length: 255 })
 })
+
+// Drizzle выводит типы из схемы автоматически.
+// $inferSelect — тип строки при чтении (SELECT).
+// $inferInsert — тип при вставке (поля с default становятся опциональными).
+export type User        = typeof users.$inferSelect
+export type NewUser     = typeof users.$inferInsert
+
+export type Analysis    = typeof analyses.$inferSelect
+export type NewAnalysis = typeof analyses.$inferInsert
+
+export type Marker      = typeof markers.$inferSelect
+export type NewMarker   = typeof markers.$inferInsert
