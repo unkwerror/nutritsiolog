@@ -6,6 +6,7 @@ import { getFileBuffer } from './services/storage.js'
 import { createOcrService } from './ocr/index.js'
 import { analyses, markers } from './db/schema.js'
 import { db } from './db/client.js'
+import { redis } from './core/redis.js'
 import { config } from './core/config.js'
 import logger from './core/logger.js'
 
@@ -87,6 +88,10 @@ const worker = new Worker<AnalysisJobData>(
                     .where(eq(analyses.id, analysisId))
             })
 
+            await redis.publish(
+                `analysis:${analysisId}`,
+                JSON.stringify({ status: 'done', analysisId })
+            )
             log.info('job done')
         } catch (err) {
             log.error({ err }, 'job failed')
@@ -94,6 +99,12 @@ const worker = new Worker<AnalysisJobData>(
                 .update(analyses)
                 .set({ status: 'failed', updatedAt: new Date() })
                 .where(eq(analyses.id, analysisId))
+            // Не глушим ошибку публикации — просто логируем, чтобы не скрыть оригинальную
+            redis
+                .publish(`analysis:${analysisId}`, JSON.stringify({ status: 'failed', analysisId }))
+                .catch((pubErr: Error) =>
+                    log.warn({ err: pubErr }, 'Failed to publish failed status')
+                )
             throw err
         }
     },
