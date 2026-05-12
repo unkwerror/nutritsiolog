@@ -4,7 +4,7 @@ import { config }                            from '../core/config.js'
 import { withRetry }                         from '../utils/retry.js'
 import { SYSTEM_INSTRUCTION, PARSE_PROMPT }  from '../prompts/analysis.js'
 import { validateLabResult, type LabResult } from '../utils/validateLabResult.js'
-import logger                                from '../utils/logger.js'
+import logger                                from '../core/logger.js'
 
 const ai = new GoogleGenAI({
     apiKey: config.GEMINI_API_KEY,

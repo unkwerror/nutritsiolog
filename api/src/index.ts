@@ -12,7 +12,8 @@ import analysisRoutes from './routes/analysis.js'
 import healthRoutes   from './routes/health.js'
 import { ensureBucket } from './services/storage.js'
 import { config }       from './core/config.js'
-import logger           from './utils/logger.js'
+import logger           from './core/logger.js'
+import errorHandler     from './core/errorHandler.js'
 
 const app = Fastify({ loggerInstance: logger })
 
@@ -25,6 +26,9 @@ app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 app.register(dbPlugin)
 app.register(jwtPlugin)
 app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 5 } })
+
+// обработка ошибок
+app.register(errorHandler)
 
 // роуты
 app.register(healthRoutes)

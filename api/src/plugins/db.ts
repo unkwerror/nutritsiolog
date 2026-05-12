@@ -1,20 +1,14 @@
-import { drizzle } from 'drizzle-orm/postgres-js'
-import postgres     from 'postgres'
-import fp           from 'fastify-plugin'
+import fp                        from 'fastify-plugin'
 import { type FastifyInstance } from 'fastify'
-
-import { config } from '../core/config.js'
+import { db, sql }              from '../db/client.js'
 
 declare module 'fastify' {
     interface FastifyInstance {
-        db: ReturnType<typeof drizzle>
+        db: typeof db
     }
 }
 
 async function dbPlugin(fastify: FastifyInstance) {
-    const sql = postgres(config.DATABASE_URL)
-    const db  = drizzle(sql)
-
     fastify.decorate('db', db)
 
     fastify.addHook('onClose', async () => {
