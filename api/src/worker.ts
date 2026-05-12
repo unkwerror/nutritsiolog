@@ -2,12 +2,14 @@ import './utils/proxy.js'
 import { Worker } from 'bullmq'
 import { eq }     from 'drizzle-orm'
 
-import { getFileBuffer }      from './services/storage.js'
-import { parseLabResult }     from './services/ocr.js'
-import { analyses, markers }  from './db/schema.js'
-import { db }                 from './db/client.js'
-import { config }             from './core/config.js'
-import logger                 from './core/logger.js'
+import { getFileBuffer }     from './services/storage.js'
+import { createOcrService }  from './ocr/index.js'
+import { analyses, markers } from './db/schema.js'
+import { db }                from './db/client.js'
+import { config }            from './core/config.js'
+import logger                from './core/logger.js'
+
+const ocrService = createOcrService(config)
 
 type AnalysisJobData = {
     analysisId: number
@@ -23,7 +25,7 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
 
     try {
         const buffer = await getFileBuffer(fileKey)
-        const result = await parseLabResult(buffer, mimeType)
+        const result = await ocrService.parseLabResult(buffer, mimeType)
 
         log.info({ markerCount: result.markers.length }, 'parsed markers')
 
@@ -34,10 +36,10 @@ const worker = new Worker<AnalysisJobData>('analysis', async (job) => {
                     name:                marker.name,
                     code:                marker.code,
                     section:             marker.section,
-                    value:               marker.value,
+                    value:               marker.value !== null ? String(marker.value) : null,
                     unit:                marker.unit,
-                    referenceMin:        marker.referenceMin,
-                    referenceMax:        marker.referenceMax,
+                    referenceMin:        marker.referenceMin !== null ? String(marker.referenceMin) : null,
+                    referenceMax:        marker.referenceMax !== null ? String(marker.referenceMax) : null,
                     referenceRaw:        marker.referenceRaw,
                     isOutOfRange:        marker.isOutOfRange,
                     outOfRangeDirection: marker.outOfRangeDirection,

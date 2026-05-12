@@ -1,0 +1,76 @@
+{
+  "lab": {
+    "name": "ИНВИТРО",
+    "address": "г. Москва, ул. Тестовая, 1",
+    "phone": "+7 (800) 200-36-36"
+  },
+  "patient": {
+    "fullName": "Иванов Иван Иванович",
+    "gender": "male",
+    "birthDate": "1980-01-15",
+    "age": 45
+  },
+  "order": {
+    "id": "12345678",
+    "sampleTakenAt": "2025-01-10",
+    "reportDate": "2025-01-11"
+  },
+  "markers": [
+    {
+      "name": "Гемоглобин",
+      "code": "HGB",
+      "section": "Общий анализ крови",
+      "value": 145,
+      "unit": "г/л",
+      "referenceMin": 130,
+      "referenceMax": 170,
+      "referenceRaw": "130 - 170",
+      "isOutOfRange": false,
+      "outOfRangeDirection": null,
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Ферритин",
+      "code": "FERR",
+      "section": "Витамины и микроэлементы",
+      "value": 12.5,
+      "unit": "мкг/л",
+      "referenceMin": 30,
+      "referenceMax": 400,
+      "referenceRaw": "30 - 400",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": "Иммунохемилюминесцентный анализ"
+    },
+    {
+      "name": "Витамин D, 25-гидрокси",
+      "code": "VIT_D",
+      "section": "Витамины и микроэлементы",
+      "value": 22.0,
+      "unit": "нг/мл",
+      "referenceMin": 30,
+      "referenceMax": 100,
+      "referenceRaw": "30 - 100",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "ТТГ",
+      "code": "TSH",
+      "section": "Гормоны щитовидной железы",
+      "value": 2.1,
+      "unit": "мкМЕ/мл",
+      "referenceMin": 0.4,
+      "referenceMax": 4.0,
+      "referenceRaw": "0.4 - 4.0",
+      "isOutOfRange": false,
+      "outOfRangeDirection": null,
+      "comment": null,
+      "method": null
+    }
+  ]
+}
