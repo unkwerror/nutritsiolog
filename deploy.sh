@@ -21,6 +21,7 @@ echo "==> Building TypeScript..."
 npm run build
 
 echo "==> Running migrations..."
+set -a && source .env && set +a
 npx drizzle-kit migrate || true
 
 echo "==> Pruning dev dependencies..."

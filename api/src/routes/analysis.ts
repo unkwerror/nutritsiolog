@@ -1,9 +1,9 @@
+import '@fastify/multipart'
 import { eq, and } from 'drizzle-orm'
 import { analyses } from '../db/schema.js'
+import { type FastifyInstance } from 'fastify'
 import { uploadFile } from '../services/storage.js'
 import { analysisQueue } from '../queues/analysisQueue.js'
-import { type FastifyInstance } from 'fastify'
-import '@fastify/multipart'
 
 
 declare module '@fastify/jwt' {
