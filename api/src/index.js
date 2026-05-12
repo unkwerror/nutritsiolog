@@ -13,7 +13,7 @@ import healthRoutes   from './routes/health.js'
 import { ensureBucket } from './services/storage.js'
 import logger from './utils/logger.js'
 
-const app = Fastify({ logger })
+const app = Fastify({ loggerInstance: logger })
 
 // security — регистрируем первыми, чтобы заголовки применялись ко всем роутам
 app.register(helmet)
