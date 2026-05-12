@@ -1,5 +1,6 @@
 import fp                                                    from 'fastify-plugin'
 import { type FastifyPluginAsync, type FastifyRequest, type FastifyReply } from 'fastify'
+import { ZodError }                                          from 'zod'
 import { AppError }                                          from './errors.js'
 
 const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
@@ -18,8 +19,16 @@ const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
             })
         }
 
+        // Ошибки валидации Zod (parse() в роутах)
+        if (error instanceof ZodError) {
+            request.log.warn({ err: error }, 'Validation error')
+            return reply.code(400).send({
+                error: { code: 'VALIDATION_ERROR', message: 'Invalid request data', details: error.issues }
+            })
+        }
+
         // Ошибки валидации схемы от Fastify (тело запроса не соответствует схеме)
-        if ('statusCode' in error && error.statusCode === 400) {
+        if ('statusCode' in error && (error as { statusCode: number }).statusCode === 400) {
             request.log.warn({ err: error }, 'Validation error')
             return reply.code(400).send({
                 error: { code: 'VALIDATION_ERROR', message: error.message }
