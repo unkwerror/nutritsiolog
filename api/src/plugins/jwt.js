@@ -16,8 +16,8 @@ async function jwtPlugin(fastify) {
     fastify.decorate('authenticate', async (request, reply) => {
         try {
             await request.jwtVerify()
-        } catch (err) {
-            reply.send(err)
+        } catch {
+            reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
         }
     })
 }

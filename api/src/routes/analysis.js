@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { analyses } from '../db/schema.js'
 import { uploadFile } from '../services/storage.js'
 import { analysisQueue } from '../queues/analysisQueue.js'
@@ -52,10 +52,9 @@ export default async function analysisRoutes(fastify) {
         if (!Number.isInteger(numId) || numId < 1)
             return reply.code(400).send({ error: 'Invalid id' })
 
-        const [analysis] = await db.select().from(analyses).where(eq(analyses.id, numId))
+        const [analysis] = await db.select().from(analyses).where(and(eq(analyses.id, numId), eq(analyses.userId, request.user.id)))
 
         if (!analysis) return reply.code(404).send({ error: 'Not found' })
-        if (analysis.userId !== request.user.id) return reply.code(403).send({ error: 'Forbidden' })
 
         return analysis
     })
