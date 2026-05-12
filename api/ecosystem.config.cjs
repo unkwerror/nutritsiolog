@@ -29,7 +29,7 @@ module.exports = {
             name: 'mailpit',
             script: '/usr/local/bin/mailpit',
             interpreter: 'none',
-            args: '--smtp-bind-addr 127.0.0.1:1025 --ui-bind-addr 0.0.0.0:8025',
+            args: '--smtp 127.0.0.1:1025 --listen 0.0.0.0:8025',
             exec_mode: 'fork',
             autorestart: true,
             watch: false
