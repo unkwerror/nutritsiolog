@@ -5,7 +5,7 @@ export const users = pgTable('users', {
     firstName: varchar('first_name', { length: 100 }).notNull(),
     lastName:  varchar('last_name', { length: 100 }).notNull(),
     phone:     varchar('phone', { length: 25 }).unique(),
-    email:     varchar('email', { length: 255 }).notNull().unique(),
+    email:     varchar('email', { length: 255 }).unique(),
     password:  varchar('password', { length: 255 }).notNull(),
     consentPd: boolean('consent_pd').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),

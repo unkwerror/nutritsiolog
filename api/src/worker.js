@@ -40,7 +40,20 @@ new Worker('analysis', async (job) => {
             )
 
             await tx.update(analyses)
-                .set({ status: 'done', updatedAt: new Date() })
+                .set({
+                    status:          'done',
+                    labName:         result.lab?.name,
+                    labAddress:      result.lab?.address,
+                    labPhone:        result.lab?.phone,
+                    patientFullName: result.patient?.fullName,
+                    patientGender:   result.patient?.gender,
+                    patientBirthDate:result.patient?.birthDate,
+                    patientAge:      result.patient?.age,
+                    orderId:         result.order?.id,
+                    sampleTakenAt:   result.order?.sampleTakenAt,
+                    reportDate:      result.order?.reportDate,
+                    updatedAt:       new Date()
+                })
                 .where(eq(analyses.id, analysisId))
         })
 

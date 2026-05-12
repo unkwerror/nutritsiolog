@@ -48,7 +48,11 @@ export default async function analysisRoutes(fastify) {
         const { db } = request.server
         const { id } = request.params
 
-        const [analysis] = await db.select().from(analyses).where(eq(analyses.id, Number(id)))
+        const numId = Number(id)
+        if (!Number.isInteger(numId) || numId < 1)
+            return reply.code(400).send({ error: 'Invalid id' })
+
+        const [analysis] = await db.select().from(analyses).where(eq(analyses.id, numId))
 
         if (!analysis) return reply.code(404).send({ error: 'Not found' })
         if (analysis.userId !== request.user.id) return reply.code(403).send({ error: 'Forbidden' })
