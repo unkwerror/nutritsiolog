@@ -24,7 +24,17 @@ app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
 
 // security
-app.register(helmet)
+app.register(helmet, {
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc:     ["'self'"],
+            scriptSrc:      ["'self'", "'unsafe-inline'"],
+            styleSrc:       ["'self'", "'unsafe-inline'"],
+            imgSrc:         ["'self'", "data:"],
+            workerSrc:      ["'self'", "blob:"],
+        }
+    }
+})
 app.register(cors,      { origin: config.CORS_ORIGIN })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 
