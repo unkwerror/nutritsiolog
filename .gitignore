@@ -48,6 +48,9 @@ minio-data/
 .DS_Store
 Thumbs.db
 
+# Husky
+.husky/_
+
 # IDE
 .vscode/settings.json
 .idea/

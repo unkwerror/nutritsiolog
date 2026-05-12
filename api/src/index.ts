@@ -1,24 +1,23 @@
-import './utils/proxy.js'
-import Fastify      from 'fastify'
-import helmet       from '@fastify/helmet'
-import cors         from '@fastify/cors'
-import rateLimit    from '@fastify/rate-limit'
-import multipart    from '@fastify/multipart'
+import './core/proxy.js'
+import Fastify from 'fastify'
+import helmet from '@fastify/helmet'
+import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
+import multipart from '@fastify/multipart'
 import { ZodTypeProvider, serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 
-import dbPlugin       from './plugins/db.js'
-import jwtPlugin      from './plugins/jwt.js'
-import swaggerPlugin  from './plugins/swagger.js'
-import authRoutes     from './modules/auth/routes.js'
+import dbPlugin from './plugins/db.js'
+import jwtPlugin from './plugins/jwt.js'
+import swaggerPlugin from './plugins/swagger.js'
+import authRoutes from './modules/auth/routes.js'
 import analysisRoutes from './modules/analysis/routes.js'
-import healthRoutes   from './routes/health.js'
+import healthRoutes from './modules/health/routes.js'
 import { ensureBucket } from './services/storage.js'
-import { config }       from './core/config.js'
-import logger           from './core/logger.js'
-import errorHandler     from './core/errorHandler.js'
+import { config } from './core/config.js'
+import logger from './core/logger.js'
+import errorHandler from './core/errorHandler.js'
 
-const app = Fastify({ loggerInstance: logger })
-    .withTypeProvider<ZodTypeProvider>()
+const app = Fastify({ loggerInstance: logger }).withTypeProvider<ZodTypeProvider>()
 
 app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
@@ -26,7 +25,7 @@ app.setSerializerCompiler(serializerCompiler)
 // security
 // CSP отключён — настраивается на уровне Nginx в prod (там же терминация TLS)
 app.register(helmet, { contentSecurityPolicy: false })
-app.register(cors,      { origin: config.CORS_ORIGIN })
+app.register(cors, { origin: config.CORS_ORIGIN })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 
 // инфраструктура
@@ -40,7 +39,7 @@ app.register(errorHandler)
 
 // роуты
 app.register(healthRoutes)
-app.register(authRoutes,     { prefix: '/api/v1' })
+app.register(authRoutes, { prefix: '/api/v1' })
 app.register(analysisRoutes, { prefix: '/api/v1' })
 
 process.on('SIGTERM', async () => {

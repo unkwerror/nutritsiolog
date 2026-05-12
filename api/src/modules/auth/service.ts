@@ -1,13 +1,13 @@
-import { sendOtp, checkOtp }                            from './otp.js'
-import { type UsersRepository }                         from './repository.js'
+import { sendOtp, checkOtp } from './strategies/emailOtp.js'
+import { type UsersRepository } from './repository.js'
 import { OtpInvalidError, RegistrationIncompleteError } from './errors.js'
-import { type RequestOtpBody, type VerifyOtpBody }      from './schemas.js'
+import { type RequestOtpBody, type VerifyOtpBody } from './schemas.js'
 
 export class AuthService {
     constructor(private repo: UsersRepository) {}
 
     async requestOtp(data: RequestOtpBody): Promise<{ isNewUser: boolean }> {
-        const email    = data.email.toLowerCase()
+        const email = data.email.toLowerCase()
         const existing = await this.repo.findByEmail(email)
 
         await sendOtp(email)
@@ -30,7 +30,7 @@ export class AuthService {
             user = await this.repo.create({
                 email,
                 firstName: data.firstName,
-                lastName:  data.lastName,
+                lastName: data.lastName,
                 consentPd: data.consentPd,
             })
         }
