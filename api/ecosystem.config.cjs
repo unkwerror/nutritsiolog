@@ -23,6 +23,16 @@ module.exports = {
             autorestart: true,
             watch: false,
             max_memory_restart: '256M'
+        },
+        {
+            // Только dev/staging — на prod удалить и настроить реальный SMTP в .env
+            name: 'mailpit',
+            script: '/usr/local/bin/mailpit',
+            interpreter: 'none',
+            args: '--smtp-bind-addr 127.0.0.1:1025 --ui-bind-addr 0.0.0.0:8025',
+            exec_mode: 'fork',
+            autorestart: true,
+            watch: false
         }
     ]
 }

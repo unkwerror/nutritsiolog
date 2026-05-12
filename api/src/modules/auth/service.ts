@@ -3,54 +3,39 @@ import { type UsersRepository }                         from './repository.js'
 import { OtpInvalidError, RegistrationIncompleteError } from './errors.js'
 import { type RequestOtpBody, type VerifyOtpBody }      from './schemas.js'
 
-function normalizeIdentifier(email?: string, phone?: string): { identifier: string; type: 'email' | 'phone' } {
-    if (email) return { identifier: email.toLowerCase(), type: 'email' }
-    return { identifier: phone!.replace(/[^\d+]/g, ''), type: 'phone' }
-}
-
 export class AuthService {
     constructor(private repo: UsersRepository) {}
 
     async requestOtp(data: RequestOtpBody): Promise<{ isNewUser: boolean }> {
-        const { identifier, type } = normalizeIdentifier(data.email, data.phone)
+        const email    = data.email.toLowerCase()
+        const existing = await this.repo.findByEmail(email)
 
-        const existing = type === 'email'
-            ? await this.repo.findByEmail(identifier)
-            : await this.repo.findByPhone(identifier)
-
-        await sendOtp(identifier, type)
+        await sendOtp(email)
 
         return { isNewUser: !existing }
     }
 
     async verifyOtp(data: VerifyOtpBody): Promise<{ id: string; email: string | null }> {
-        const { identifier, type } = normalizeIdentifier(data.email, data.phone)
+        const email = data.email.toLowerCase()
 
-        const valid = await checkOtp(identifier, data.code)
+        const valid = await checkOtp(email, data.code)
         if (!valid) throw new OtpInvalidError()
 
-        let user = type === 'email'
-            ? await this.repo.findByEmail(identifier)
-            : await this.repo.findByPhone(identifier)
+        let user = await this.repo.findByEmail(email)
 
         if (!user) {
             if (!data.firstName || !data.lastName || !data.consentPd) {
                 throw new RegistrationIncompleteError()
             }
             user = await this.repo.create({
-                email:     type === 'email' ? identifier : undefined,
-                phone:     type === 'phone' ? identifier : undefined,
+                email,
                 firstName: data.firstName,
                 lastName:  data.lastName,
                 consentPd: data.consentPd,
             })
         }
 
-        if (type === 'email') {
-            await this.repo.setEmailVerified(user.id)
-        } else {
-            await this.repo.setPhoneVerified(user.id)
-        }
+        await this.repo.setEmailVerified(user.id)
 
         return { id: user.id, email: user.email ?? null }
     }
