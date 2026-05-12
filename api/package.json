@@ -9,6 +9,7 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
+    "migrate": "node --env-file=.env dist/db/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "engines": {
