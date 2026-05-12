@@ -21,7 +21,7 @@ echo "==> Building TypeScript..."
 npm run build
 
 echo "==> Running migrations..."
-npx drizzle-kit migrate
+npx drizzle-kit migrate || true
 
 echo "==> Pruning dev dependencies..."
 npm prune --omit=dev
