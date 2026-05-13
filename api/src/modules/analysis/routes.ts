@@ -1,6 +1,6 @@
 import '@fastify/multipart'
 import { z } from 'zod'
-import { type FastifyInstance } from 'fastify'
+import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { AnalysisRepository } from './repository.js'
 import { AnalysisService } from './service.js'
 import { ValidationError } from '../../core/errors.js'
@@ -52,7 +52,7 @@ const AnalysisDetailSchema = AnalysisListItemSchema.extend({
     markers: z.array(MarkerSchema),
 })
 
-export default async function analysisRoutes(fastify: FastifyInstance) {
+const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.post(
         '/analysis/upload',
         {
@@ -97,7 +97,7 @@ export default async function analysisRoutes(fastify: FastifyInstance) {
         }
     )
 
-    fastify.get<{ Params: { id: string } }>(
+    fastify.get(
         '/analysis/:id/events',
         {
             schema: {
@@ -182,8 +182,9 @@ export default async function analysisRoutes(fastify: FastifyInstance) {
         }
     )
 
-    fastify.get<{ Params: { id: string } }>(
+    fastify.get(
         '/analysis/:id',
+
         {
             schema: {
                 tags: ['Analysis'],
@@ -205,3 +206,5 @@ export default async function analysisRoutes(fastify: FastifyInstance) {
         }
     )
 }
+
+export default analysisRoutes

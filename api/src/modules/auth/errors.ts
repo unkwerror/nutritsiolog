@@ -1,11 +1,19 @@
-import { UnauthorizedError, ValidationError } from '../../core/errors.js'
+import { UnauthorizedError, NotFoundError, ConflictError } from '../../core/errors.js'
 
 export class OtpInvalidError extends UnauthorizedError {
-    constructor() { super('OTP_INVALID', 'Invalid or expired code') }
+    constructor() {
+        super('OTP_INVALID', 'Invalid or expired code')
+    }
 }
 
-export class RegistrationIncompleteError extends ValidationError {
+export class UserNeedsRegistrationError extends NotFoundError {
     constructor() {
-        super('AUTH_REGISTRATION_INCOMPLETE', 'firstName, lastName and consentPd are required for new users')
+        super('USER_NEEDS_REGISTRATION', 'User not found, please register')
+    }
+}
+
+export class UserAlreadyExistsError extends ConflictError {
+    constructor() {
+        super('AUTH_USER_ALREADY_EXISTS', 'User already registered, use verify-otp to sign in')
     }
 }

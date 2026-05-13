@@ -12,6 +12,7 @@ import swaggerPlugin from './plugins/swagger.js'
 import authRoutes from './modules/auth/routes.js'
 import analysisRoutes from './modules/analysis/routes.js'
 import healthRoutes from './modules/health/routes.js'
+import devtoolsRoutes from './modules/devtools/upload.js'
 import { ensureBucket } from './services/storage.js'
 import { config } from './core/config.js'
 import logger from './core/logger.js'
@@ -41,6 +42,7 @@ app.register(errorHandler)
 app.register(healthRoutes)
 app.register(authRoutes, { prefix: '/api/v1' })
 app.register(analysisRoutes, { prefix: '/api/v1' })
+if (config.NODE_ENV !== 'production') app.register(devtoolsRoutes)
 
 process.on('SIGTERM', async () => {
     app.log.info('SIGTERM received, shutting down')

@@ -33,6 +33,7 @@ export async function sendOtp(email: string): Promise<void> {
     await sendOtpEmail(email, code)
 }
 
+// Проверяет код и удаляет его (финальное потребление)
 export async function checkOtp(email: string, code: string): Promise<boolean> {
     const key = otpKey(email)
     const raw = await redis.get(key)
@@ -52,5 +53,29 @@ export async function checkOtp(email: string, code: string): Promise<boolean> {
     }
 
     await redis.del(key)
+    return true
+}
+
+// Проверяет код без удаления — для verify-otp у незарегистрированных юзеров
+// Инкрементирует attempts (защита от брутфорса), но оставляет код в Redis
+export async function peekOtp(email: string, code: string): Promise<boolean> {
+    const key = otpKey(email)
+    const raw = await redis.get(key)
+    if (!raw) return false
+
+    const data = JSON.parse(raw) as OtpData
+    data.attempts++
+
+    if (data.attempts >= MAX_ATTEMPTS) {
+        await redis.del(key)
+        return false
+    }
+
+    if (data.code !== code) {
+        await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
+        return false
+    }
+
+    await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
     return true
 }
