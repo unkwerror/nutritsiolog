@@ -203,8 +203,8 @@ td { padding: 7px 12px; vertical-align: middle }
 
 <script>
 const API = '/api/v1'
-let token = sessionStorage.getItem('dev_token')
-let userEmail = sessionStorage.getItem('dev_email')
+let token = localStorage.getItem('dev_token')
+let userEmail = localStorage.getItem('dev_email')
 
 // ── utils ────────────────────────────────────────────────────────
 function show(id) { document.getElementById(id).style.display = 'block' }
@@ -214,14 +214,33 @@ function setErr(id, msg) {
   el.textContent = msg; el.style.display = msg ? 'block' : 'none'
 }
 
-async function apiFetch(method, path, body, isForm) {
+async function rawFetch(method, path, body, isForm) {
   const headers = {}
   if (token) headers['Authorization'] = 'Bearer ' + token
   if (!isForm && body) headers['Content-Type'] = 'application/json'
-  const res = await fetch(API + path, {
+  return fetch(API + path, {
     method, headers,
     body: isForm ? body : (body ? JSON.stringify(body) : undefined)
   })
+}
+
+async function apiFetch(method, path, body, isForm) {
+  let res = await rawFetch(method, path, body, isForm)
+
+  // access token истёк — пробуем рефреш (браузер сам пошлёт httpOnly cookie)
+  if (res.status === 401 && path !== '/auth/refresh') {
+    const refreshRes = await rawFetch('POST', '/auth/refresh')
+    if (refreshRes.ok) {
+      const { accessToken } = await refreshRes.json()
+      token = accessToken
+      localStorage.setItem('dev_token', token)
+      res = await rawFetch(method, path, body, isForm) // ретрай
+    } else {
+      clearSession()
+      throw new Error('Сессия истекла — войдите снова')
+    }
+  }
+
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data?.error?.message || data?.error?.code || 'HTTP ' + res.status)
   return data
@@ -417,8 +436,8 @@ document.getElementById('btn-verify').addEventListener('click', async () => {
       data = await apiFetch('POST', '/auth/verify-otp', { email, code })
     }
     token = data.accessToken; userEmail = email
-    sessionStorage.setItem('dev_token', token)
-    sessionStorage.setItem('dev_email', email)
+    localStorage.setItem('dev_token', token)
+    localStorage.setItem('dev_email', email)
     enterApp()
   } catch (e) { setErr('err-otp', e.message) }
   finally {
@@ -431,14 +450,16 @@ document.getElementById('code').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-verify').click()
 })
 
-document.getElementById('link-logout').addEventListener('click', () => {
-  sessionStorage.removeItem('dev_token'); sessionStorage.removeItem('dev_email')
+function clearSession() {
+  localStorage.removeItem('dev_token'); localStorage.removeItem('dev_email')
   token = null; userEmail = null
   document.getElementById('new-list').innerHTML = ''
   document.getElementById('history-list').innerHTML = ''
   hide('app-section'); hide('user-info'); hide('new-section'); show('auth-section')
   hide('step-otp'); show('step-email')
-})
+}
+
+document.getElementById('link-logout').addEventListener('click', clearSession)
 
 // ── drop zone ────────────────────────────────────────────────────
 const dropZone = document.getElementById('drop-zone')
