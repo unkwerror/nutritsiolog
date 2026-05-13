@@ -11,6 +11,47 @@ const AnalysisResultSchema = z.object({
     status: z.string(),
 })
 
+const MarkerSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    code: z.string().nullable(),
+    section: z.string().nullable(),
+    value: z.string().nullable(),
+    unit: z.string().nullable(),
+    referenceMin: z.string().nullable(),
+    referenceMax: z.string().nullable(),
+    referenceRaw: z.string().nullable(),
+    isOutOfRange: z.boolean(),
+    outOfRangeDirection: z.string().nullable(),
+    comment: z.string().nullable(),
+    method: z.string().nullable(),
+})
+
+const AnalysisListItemSchema = z.object({
+    id: z.number(),
+    status: z.string(),
+    labName: z.string().nullable(),
+    fileOriginalName: z.string().nullable(),
+    fileMimeType: z.string().nullable(),
+    fileSize: z.number().nullable(),
+    isArchived: z.boolean(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+})
+
+const AnalysisDetailSchema = AnalysisListItemSchema.extend({
+    labAddress: z.string().nullable(),
+    labPhone: z.string().nullable(),
+    patientFullName: z.string().nullable(),
+    patientGender: z.string().nullable(),
+    patientBirthDate: z.string().nullable(),
+    patientAge: z.number().nullable(),
+    orderId: z.string().nullable(),
+    sampleTakenAt: z.string().nullable(),
+    reportDate: z.string().nullable(),
+    markers: z.array(MarkerSchema),
+})
+
 export default async function analysisRoutes(fastify: FastifyInstance) {
     fastify.post(
         '/analysis/upload',
@@ -36,6 +77,23 @@ export default async function analysisRoutes(fastify: FastifyInstance) {
             const result = await service.createAnalysis(request.user.id, files)
 
             return reply.code(202).send(result)
+        }
+    )
+
+    fastify.get(
+        '/analysis',
+        {
+            schema: {
+                tags: ['Analysis'],
+                security: [{ bearerAuth: [] }],
+                response: { 200: z.array(AnalysisListItemSchema) },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const list = await service.listAnalyses(request.user.id)
+            return reply.send(list)
         }
     )
 
@@ -131,6 +189,7 @@ export default async function analysisRoutes(fastify: FastifyInstance) {
                 tags: ['Analysis'],
                 security: [{ bearerAuth: [] }],
                 params: z.object({ id: z.string() }),
+                response: { 200: AnalysisDetailSchema },
             },
             preHandler: [fastify.authenticate],
         },
