@@ -1,0 +1,1 @@
+ALTER TABLE "analyses" ALTER COLUMN "lab_phone" SET DATA TYPE varchar(100);
