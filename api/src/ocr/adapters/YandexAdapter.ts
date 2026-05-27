@@ -91,10 +91,27 @@ export class YandexAdapter implements OcrService {
         }
 
         const json = await response.json() as {
-            result?: { textAnnotation?: { fullText?: string } }
+            result?: {
+                textAnnotation?: {
+                    fullText?: string
+                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                }
+            }
         }
 
-        return json.result?.textAnnotation?.fullText ?? ''
+        const annotation = json.result?.textAnnotation
+        logger.debug({ hasFullText: !!annotation?.fullText, blockCount: annotation?.blocks?.length }, 'Vision OCR sync response')
+
+        if (annotation?.fullText?.trim()) return annotation.fullText
+
+        // Fallback: extract text from blocks if fullText is absent
+        const blocksText = (annotation?.blocks ?? [])
+            .flatMap(b => b.lines ?? [])
+            .map(l => l.text ?? '')
+            .filter(Boolean)
+            .join('\n')
+
+        return blocksText
     }
 
     private async visionOcrAsync(buffer: Buffer, mimeType: string): Promise<string> {
@@ -135,12 +152,25 @@ export class YandexAdapter implements OcrService {
 
             const op = await pollRes.json() as {
                 done?: boolean
-                response?: { textAnnotation?: { fullText?: string } }
+                response?: {
+                    textAnnotation?: {
+                        fullText?: string
+                        blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                    }
+                }
                 error?: { message?: string }
             }
 
             if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
-            if (op.done) return op.response?.textAnnotation?.fullText ?? ''
+            if (op.done) {
+                const annotation = op.response?.textAnnotation
+                if (annotation?.fullText?.trim()) return annotation.fullText
+                return (annotation?.blocks ?? [])
+                    .flatMap(b => b.lines ?? [])
+                    .map(l => l.text ?? '')
+                    .filter(Boolean)
+                    .join('\n')
+            }
         }
 
         throw new OcrTimeoutError('Yandex Vision async: max poll attempts exceeded')
