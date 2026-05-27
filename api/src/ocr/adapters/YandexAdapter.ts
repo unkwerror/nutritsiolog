@@ -11,10 +11,10 @@ type YandexAdapterConfig = {
     maxRetries?: number
 }
 
-const VISION_SYNC_URL  = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
-const VISION_ASYNC_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeTextAsync'
-const OPERATION_URL    = 'https://operation.api.cloud.yandex.net/operations'
-const GPT_URL          = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
+const VISION_SYNC_URL   = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
+const VISION_ASYNC_URL  = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeTextAsync'
+const VISION_RESULT_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/getRecognizeTextResult'
+const GPT_URL           = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
 
 const TEXT_PARSE_PROMPT = `Ниже — текст, распознанный OCR из медицинского лабораторного бланка. Разбери его и верни результат строго по схеме из системного промпта. Если текст не является результатом лабораторного анализа — верни {"notALabResult": true}. Только JSON, без дополнительного текста.\n\nТЕКСТ БЛАНКА:\n`
 
@@ -160,30 +160,30 @@ export class YandexAdapter implements OcrService {
             await new Promise(r => setTimeout(r, 2000))
             if (Date.now() > deadline) throw new OcrTimeoutError('Yandex Vision async timeout')
 
-            const pollRes = await fetch(`${OPERATION_URL}/${operationId}`, { headers }).catch(() => null)
+            const pollRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers }).catch(() => null)
             if (!pollRes?.ok) continue
 
             const op = await pollRes.json() as {
                 done?: boolean
-                response?: {
-                    textAnnotation?: {
-                        fullText?: string
-                        blocks?: Array<{ lines?: Array<{ text?: string }> }>
-                    }
+                textAnnotation?: {
+                    fullText?: string
+                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                    pages?:  Array<{ blocks?: Array<{ lines?: Array<{ text?: string }> }> }>
                 }
                 error?: { message?: string }
             }
 
             if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
             if (op.done) {
-                logger.info({ rawPreview: JSON.stringify(op).slice(0, 500) }, 'Vision OCR async done')
-                const annotation = op.response?.textAnnotation
+                logger.info({ rawPreview: JSON.stringify(op).slice(0, 800) }, 'Vision OCR async done')
+                const annotation = op.textAnnotation
                 if (annotation?.fullText?.trim()) return annotation.fullText
-                return (annotation?.blocks ?? [])
-                    .flatMap(b => b.lines ?? [])
-                    .map(l => l.text ?? '')
-                    .filter(Boolean)
-                    .join('\n')
+                const fromBlocks = (annotation?.blocks ?? [])
+                    .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
+                if (fromBlocks.trim()) return fromBlocks
+                return (annotation?.pages ?? [])
+                    .flatMap(p => p.blocks ?? [])
+                    .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
             }
         }
 
