@@ -154,37 +154,59 @@ export class YandexAdapter implements OcrService {
         const { id: operationId } = await startRes.json() as { id?: string }
         if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
 
-        // Poll until done (max 30 attempts × 2s = 60s)
+        // Step 1: Poll Operations API until done
+        const opHeaders = { 'Authorization': `Api-Key ${this.apiKey}` }
         const deadline = Date.now() + this.timeoutMs
         for (let attempt = 0; attempt < 30; attempt++) {
             await new Promise(r => setTimeout(r, 2000))
             if (Date.now() > deadline) throw new OcrTimeoutError('Yandex Vision async timeout')
 
-            const pollRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers }).catch(() => null)
+            const pollRes = await fetch(`https://operation.api.cloud.yandex.net/operations/${operationId}`, {
+                headers: opHeaders,
+            }).catch(() => null)
             if (!pollRes?.ok) continue
 
             const op = await pollRes.json() as {
                 done?: boolean
-                textAnnotation?: {
-                    fullText?: string
-                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
-                    pages?:  Array<{ blocks?: Array<{ lines?: Array<{ text?: string }> }> }>
-                }
                 error?: { message?: string }
             }
 
             if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
-            if (op.done) {
-                logger.info({ rawPreview: JSON.stringify(op).slice(0, 800) }, 'Vision OCR async done')
-                const annotation = op.textAnnotation
-                if (annotation?.fullText?.trim()) return annotation.fullText
-                const fromBlocks = (annotation?.blocks ?? [])
-                    .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
-                if (fromBlocks.trim()) return fromBlocks
-                return (annotation?.pages ?? [])
-                    .flatMap(p => p.blocks ?? [])
-                    .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
+            if (!op.done) continue
+
+            // Step 2: Fetch actual OCR result (NDJSON — one JSON object per page)
+            const resultRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers })
+            if (!resultRes.ok) {
+                const text = await resultRes.text().catch(() => '')
+                throw new OcrProviderError(`Yandex Vision get result error ${resultRes.status}: ${text}`, resultRes.status)
             }
+
+            const rawBody = await resultRes.text()
+            logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
+
+            type PageResult = {
+                textAnnotation?: {
+                    fullText?: string
+                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                }
+            }
+
+            const pageTexts: string[] = []
+            for (const line of rawBody.split('\n').filter(l => l.trim())) {
+                try {
+                    const page = JSON.parse(line) as PageResult
+                    const annotation = page.textAnnotation
+                    if (annotation?.fullText?.trim()) {
+                        pageTexts.push(annotation.fullText)
+                    } else {
+                        const t = (annotation?.blocks ?? [])
+                            .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
+                        if (t.trim()) pageTexts.push(t)
+                    }
+                } catch { /* skip invalid lines */ }
+            }
+
+            return pageTexts.join('\n\n')
         }
 
         throw new OcrTimeoutError('Yandex Vision async: max poll attempts exceeded')
