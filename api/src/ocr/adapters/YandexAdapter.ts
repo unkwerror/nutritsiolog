@@ -13,7 +13,7 @@ type YandexAdapterConfig = {
 
 const VISION_SYNC_URL   = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
 const VISION_ASYNC_URL  = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeTextAsync'
-const VISION_RESULT_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/getRecognizeTextResult'
+const VISION_RESULT_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/getRecognition'
 const GPT_URL           = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
 
 const TEXT_PARSE_PROMPT = `Ниже — текст, распознанный OCR из медицинского лабораторного бланка. Разбери его и верни результат строго по схеме из системного промпта. Если текст не является результатом лабораторного анализа — верни {"notALabResult": true}. Только JSON, без дополнительного текста.\n\nТЕКСТ БЛАНКА:\n`
@@ -91,40 +91,28 @@ export class YandexAdapter implements OcrService {
         }
 
         type Block = { lines?: Array<{ text?: string }> }
-        type Page  = { blocks?: Block[] }
         const json = await response.json() as {
-            result?: {
-                textAnnotation?: {
-                    fullText?: string
-                    blocks?: Block[]
-                    pages?:  Page[]
-                }
+            textAnnotation?: {
+                fullText?: string
+                blocks?: Block[]
             }
+            page?: string
         }
 
-        const annotation = json.result?.textAnnotation
+        const annotation = json.textAnnotation
         logger.info({
             hasFullText: !!annotation?.fullText,
             fullTextLen: annotation?.fullText?.length ?? 0,
             blockCount:  annotation?.blocks?.length ?? 0,
-            pageCount:   annotation?.pages?.length ?? 0,
             rawPreview:  JSON.stringify(json).slice(0, 500),
         }, 'Vision OCR sync response')
 
         if (annotation?.fullText?.trim()) return annotation.fullText
 
-        // Fallback: try top-level blocks, then pages[].blocks
         const extractFromBlocks = (blocks: Block[]) =>
             blocks.flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
 
-        const fromBlocks = extractFromBlocks(annotation?.blocks ?? [])
-        if (fromBlocks.trim()) return fromBlocks
-
-        const fromPages = (annotation?.pages ?? [])
-            .flatMap(p => extractFromBlocks(p.blocks ?? []))
-            .join('\n')
-
-        return fromPages
+        return extractFromBlocks(annotation?.blocks ?? [])
     }
 
     private async visionOcrAsync(buffer: Buffer, mimeType: string): Promise<string> {
