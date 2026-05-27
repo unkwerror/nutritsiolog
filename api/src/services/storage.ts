@@ -25,7 +25,7 @@ export async function uploadFile(buffer: Buffer, originalName: string, mimeType:
 
     await client.putObject(BUCKET, fileKey, buffer, buffer.length, {
         'Content-Type':  mimeType,
-        'original-name': originalName
+        'original-name': encodeURIComponent(originalName)
     })
 
     return fileKey
