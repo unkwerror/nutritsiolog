@@ -44,7 +44,7 @@ export class YandexAdapter implements OcrService {
         const body = {
             content:       buffer.toString('base64'),
             mimeType:      mimeType,
-            languageCodes: ['ru', '*'],
+            languageCodes: ['ru'],
             model:         'page',
         }
 
