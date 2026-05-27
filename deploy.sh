@@ -17,6 +17,9 @@ git -C /home/mun/nutritsiolog pull origin main
 echo "==> Installing dependencies..."
 npm ci
 
+echo "==> Cleaning dist..."
+rm -rf dist
+
 echo "==> Building TypeScript..."
 npm run build
 
