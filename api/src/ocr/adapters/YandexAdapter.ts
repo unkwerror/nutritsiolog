@@ -90,28 +90,39 @@ export class YandexAdapter implements OcrService {
             throw new OcrProviderError(`Yandex Vision error ${response.status}: ${text}`, response.status)
         }
 
+        type Block = { lines?: Array<{ text?: string }> }
+        type Page  = { blocks?: Block[] }
         const json = await response.json() as {
             result?: {
                 textAnnotation?: {
                     fullText?: string
-                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                    blocks?: Block[]
+                    pages?:  Page[]
                 }
             }
         }
 
         const annotation = json.result?.textAnnotation
-        logger.debug({ hasFullText: !!annotation?.fullText, blockCount: annotation?.blocks?.length }, 'Vision OCR sync response')
+        logger.info({
+            hasFullText: !!annotation?.fullText,
+            blockCount:  annotation?.blocks?.length ?? 0,
+            pageCount:   annotation?.pages?.length ?? 0,
+        }, 'Vision OCR sync response')
 
         if (annotation?.fullText?.trim()) return annotation.fullText
 
-        // Fallback: extract text from blocks if fullText is absent
-        const blocksText = (annotation?.blocks ?? [])
-            .flatMap(b => b.lines ?? [])
-            .map(l => l.text ?? '')
-            .filter(Boolean)
+        // Fallback: try top-level blocks, then pages[].blocks
+        const extractFromBlocks = (blocks: Block[]) =>
+            blocks.flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
+
+        const fromBlocks = extractFromBlocks(annotation?.blocks ?? [])
+        if (fromBlocks.trim()) return fromBlocks
+
+        const fromPages = (annotation?.pages ?? [])
+            .flatMap(p => extractFromBlocks(p.blocks ?? []))
             .join('\n')
 
-        return blocksText
+        return fromPages
     }
 
     private async visionOcrAsync(buffer: Buffer, mimeType: string): Promise<string> {
