@@ -39,7 +39,7 @@ const markerSchema = z.object({
     referenceMin:        safeNumber.optional().transform(v => v ?? null),
     referenceMax:        safeNumber.optional().transform(v => v ?? null),
     referenceRaw:        z.string().nullable().optional().transform(v => v ?? null),
-    isOutOfRange:        z.boolean(),
+    isOutOfRange:        z.boolean().nullable().transform(v => v ?? false),
     outOfRangeDirection: z.enum(['low', 'high']).nullable(),
     comment:             z.string().nullable(),
     method:              z.string().nullable()
