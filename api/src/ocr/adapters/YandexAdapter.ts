@@ -154,62 +154,56 @@ export class YandexAdapter implements OcrService {
         const { id: operationId } = await startRes.json() as { id?: string }
         if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
 
-        // Step 1: Poll Operations API until done
-        const opHeaders = { 'Authorization': `Api-Key ${this.apiKey}` }
-        const deadline = Date.now() + this.timeoutMs
-        for (let attempt = 0; attempt < 30; attempt++) {
-            await new Promise(r => setTimeout(r, 2000))
-            if (Date.now() > deadline) throw new OcrTimeoutError('Yandex Vision async timeout')
+        // getRecognition is a streaming endpoint — call immediately, it blocks until done
+        const abort = new AbortController()
+        const timer = setTimeout(() => abort.abort(), this.timeoutMs)
 
-            const pollRes = await fetch(`https://operation.api.cloud.yandex.net/operations/${operationId}`, {
-                headers: opHeaders,
-            }).catch(() => null)
-            if (!pollRes?.ok) continue
-
-            const op = await pollRes.json() as {
-                done?: boolean
-                error?: { message?: string }
-            }
-
-            if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
-            if (!op.done) continue
-
-            // Step 2: Fetch actual OCR result (NDJSON — one JSON object per page)
-            const resultRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers })
-            if (!resultRes.ok) {
-                const text = await resultRes.text().catch(() => '')
-                throw new OcrProviderError(`Yandex Vision get result error ${resultRes.status}: ${text}`, resultRes.status)
-            }
-
-            const rawBody = await resultRes.text()
-            logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
-
-            type PageResult = {
-                textAnnotation?: {
-                    fullText?: string
-                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
-                }
-            }
-
-            const pageTexts: string[] = []
-            for (const line of rawBody.split('\n').filter(l => l.trim())) {
-                try {
-                    const page = JSON.parse(line) as PageResult
-                    const annotation = page.textAnnotation
-                    if (annotation?.fullText?.trim()) {
-                        pageTexts.push(annotation.fullText)
-                    } else {
-                        const t = (annotation?.blocks ?? [])
-                            .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
-                        if (t.trim()) pageTexts.push(t)
-                    }
-                } catch { /* skip invalid lines */ }
-            }
-
-            return pageTexts.join('\n\n')
+        let resultRes: Response
+        try {
+            resultRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, {
+                headers,
+                signal: abort.signal,
+            })
+        } catch (err) {
+            if (err instanceof Error && err.name === 'AbortError')
+                throw new OcrTimeoutError(`Yandex Vision async timeout after ${this.timeoutMs}ms`)
+            throw new OcrProviderError(`Yandex Vision get result error: ${err instanceof Error ? err.message : String(err)}`)
+        } finally {
+            clearTimeout(timer)
         }
 
-        throw new OcrTimeoutError('Yandex Vision async: max poll attempts exceeded')
+        if (!resultRes.ok) {
+            const text = await resultRes.text().catch(() => '')
+            throw new OcrProviderError(`Yandex Vision get result error ${resultRes.status}: ${text}`, resultRes.status)
+        }
+
+        // Response is NDJSON: one JSON object per page
+        const rawBody = await resultRes.text()
+        logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
+
+        type PageResult = {
+            textAnnotation?: {
+                fullText?: string
+                blocks?: Array<{ lines?: Array<{ text?: string }> }>
+            }
+        }
+
+        const pageTexts: string[] = []
+        for (const line of rawBody.split('\n').filter(l => l.trim())) {
+            try {
+                const page = JSON.parse(line) as PageResult
+                const annotation = page.textAnnotation
+                if (annotation?.fullText?.trim()) {
+                    pageTexts.push(annotation.fullText)
+                } else {
+                    const t = (annotation?.blocks ?? [])
+                        .flatMap(b => b.lines ?? []).map(l => l.text ?? '').filter(Boolean).join('\n')
+                    if (t.trim()) pageTexts.push(t)
+                }
+            } catch { /* skip invalid lines */ }
+        }
+
+        return pageTexts.join('\n\n')
     }
 
     // Step 2 — YandexGPT: extracted text → LabResult JSON
