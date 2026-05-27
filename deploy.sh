@@ -29,13 +29,10 @@ npm run migrate
 echo "==> Pruning dev dependencies..."
 npm prune --omit=dev
 
-echo "==> Reloading processes..."
-if pm2 list | grep -q "nutritsiolog-api"; then
-    pm2 reload ecosystem.config.cjs --update-env
-else
-    pm2 start ecosystem.config.cjs
-    pm2 save
-fi
+echo "==> Restarting processes..."
+pm2 delete ecosystem.config.cjs 2>/dev/null || true
+pm2 start ecosystem.config.cjs
+pm2 save
 
 echo "==> Done."
 pm2 status
