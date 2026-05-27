@@ -13,7 +13,7 @@ body {
   background: #0c0c0c; color: #d4d4d4;
   min-height: 100vh; padding: 32px 16px;
 }
-.container { max-width: 700px; margin: 0 auto }
+.container { max-width: 740px; margin: 0 auto }
 
 /* header */
 .topbar {
@@ -54,6 +54,17 @@ input:focus { border-color: #444 }
 .link:hover { color: #888 }
 .err { padding: 10px 12px; background: #1f0808; border-radius: 8px;
   font-size: 13px; color: #f87171; margin-top: 12px }
+
+/* type selector */
+.type-selector { margin-bottom: 14px }
+.type-selector label { font-size: 12px; color: #555; margin-bottom: 6px; margin-top: 0 }
+select.analysis-type-sel {
+  width: 100%; padding: 9px 12px; background: #111;
+  border: 1px solid #252525; border-radius: 8px;
+  color: #d4d4d4; font-size: 13px; outline: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+select.analysis-type-sel:focus { border-color: #444 }
 
 /* drop zone */
 input[type=file] { display: none }
@@ -120,14 +131,14 @@ input[type=file] { display: none }
 /* markers table */
 table { width: 100%; border-collapse: collapse; font-size: 13px }
 thead th {
-  padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 500;
+  padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 500;
   color: #444; border-bottom: 1px solid #1c1c1c; white-space: nowrap;
 }
 tbody tr { border-bottom: 1px solid #191919 }
 tbody tr:last-child { border-bottom: none }
-tbody tr:hover { background: #191919 }
-td { padding: 7px 12px; vertical-align: middle }
-.td-name { color: #aaa }
+tbody tr:hover td.td-editable { background: #181818 }
+td { padding: 6px 10px; vertical-align: middle }
+.td-name { color: #aaa; width: 38% }
 .td-val  { font-weight: 600; white-space: nowrap }
 .td-unit { color: #484848; white-space: nowrap }
 .td-ref  { color: #383838; white-space: nowrap; font-size: 12px }
@@ -136,12 +147,22 @@ td { padding: 7px 12px; vertical-align: middle }
 .val-low  { color: #60a5fa }
 .arrow { font-size: 10px; margin-left: 2px }
 .section-row td {
-  padding: 8px 12px 3px; font-size: 10px; color: #3a3a3a;
+  padding: 8px 10px 3px; font-size: 10px; color: #3a3a3a;
   font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
 }
 .no-markers { padding: 14px 12px; font-size: 13px; color: #3a3a3a; text-align: center }
 .card-loading { padding: 14px 12px; font-size: 13px; color: #444; text-align: center }
 .empty-state { padding: 32px; text-align: center; font-size: 14px; color: #333 }
+
+/* editable cells */
+.td-editable { cursor: text; transition: background .1s }
+.td-editable:hover { background: #1c1c1c !important }
+.td-editable input {
+  background: #111; border: 1px solid #2563eb; border-radius: 3px;
+  color: #e0e0e0; font-size: 13px; padding: 1px 5px;
+  width: 100%; min-width: 48px; outline: none;
+  font-weight: inherit;
+}
 </style>
 </head>
 <body>
@@ -182,6 +203,23 @@ td { padding: 7px 12px; vertical-align: middle }
 
   <!-- APP -->
   <div id="app-section" style="display:none">
+
+    <div class="type-selector">
+      <label>Тип анализа</label>
+      <select class="analysis-type-sel" id="analysis-type">
+        <option value="">— определить автоматически —</option>
+        <option value="cbc">ОАК (CBC) — общий анализ крови</option>
+        <option value="protein">Белковый обмен</option>
+        <option value="carb">Углеводный обмен</option>
+        <option value="liver">Функция печени и поджелудочной</option>
+        <option value="lipid">Жировой обмен (липиды)</option>
+        <option value="thyroid">Гормоны щитовидной железы</option>
+        <option value="electrolytes">Электролиты и микроэлементы</option>
+        <option value="iron">Оценка запасов железа</option>
+        <option value="inflammation">Показатели воспаления</option>
+      </select>
+    </div>
+
     <div class="drop-zone" id="drop-zone">
       <p><strong>Перетащите файлы сюда</strong> или нажмите для выбора</p>
       <small>PDF, JPG, PNG · до 10 МБ · можно несколько</small>
@@ -213,6 +251,9 @@ function setErr(id, msg) {
   const el = document.getElementById(id)
   el.textContent = msg; el.style.display = msg ? 'block' : 'none'
 }
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+}
 
 async function rawFetch(method, path, body, isForm) {
   const headers = {}
@@ -226,21 +267,18 @@ async function rawFetch(method, path, body, isForm) {
 
 async function apiFetch(method, path, body, isForm) {
   let res = await rawFetch(method, path, body, isForm)
-
-  // access token истёк — пробуем рефреш (браузер сам пошлёт httpOnly cookie)
   if (res.status === 401 && path !== '/auth/refresh') {
     const refreshRes = await rawFetch('POST', '/auth/refresh')
     if (refreshRes.ok) {
       const { accessToken } = await refreshRes.json()
       token = accessToken
       localStorage.setItem('dev_token', token)
-      res = await rawFetch(method, path, body, isForm) // ретрай
+      res = await rawFetch(method, path, body, isForm)
     } else {
       clearSession()
       throw new Error('Сессия истекла — войдите снова')
     }
   }
-
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data?.error?.message || data?.error?.code || 'HTTP ' + res.status)
   return data
@@ -253,22 +291,25 @@ function fmtDate(iso) {
     + ' ' + d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
 }
 
-// ── markers / meta rendering ────────────────────────────────────
+// ── meta ─────────────────────────────────────────────────────────
 function buildMetaHtml(a) {
   const items = [
-    a.labName          ? ['Лаборатория', a.labName] : null,
-    a.patientFullName  ? ['Пациент', a.patientFullName + (a.patientAge ? ', ' + a.patientAge + ' л.' : '')] : null,
-    a.patientGender    ? ['Пол', a.patientGender === 'male' ? 'М' : 'Ж'] : null,
-    a.sampleTakenAt    ? ['Забор', a.sampleTakenAt] : null,
-    a.reportDate       ? ['Отчёт', a.reportDate] : null,
+    a.labName         ? ['Лаборатория', a.labName] : null,
+    a.patientFullName ? ['Пациент', a.patientFullName + (a.patientAge ? ', ' + a.patientAge + ' л.' : '')] : null,
+    a.patientGender   ? ['Пол', a.patientGender === 'male' ? 'М' : 'Ж'] : null,
+    a.sampleTakenAt   ? ['Забор', a.sampleTakenAt] : null,
+    a.reportDate      ? ['Отчёт', a.reportDate] : null,
+    a.analysisType    ? ['Тип', a.analysisType] : null,
+    a.ocrProvider     ? ['OCR', a.ocrProvider] : null,
   ].filter(Boolean)
   if (!items.length) return ''
   return '<div class="card-meta">' +
-    items.map(([k, v]) => '<span class="meta-item"><b>' + k + ':</b> ' + v + '</span>').join('') +
+    items.map(([k, v]) => '<span class="meta-item"><b>' + k + ':</b> ' + escHtml(v) + '</span>').join('') +
     '</div>'
 }
 
-function buildMarkersHtml(markers) {
+// ── markers table with inline editing ────────────────────────────
+function buildMarkersHtml(markers, analysisId) {
   if (!markers || !markers.length)
     return '<div class="no-markers">Маркеры не найдены</div>'
 
@@ -283,29 +324,129 @@ function buildMarkersHtml(markers) {
   let rows = ''
   Object.entries(sections).forEach(([section, ms]) => {
     if (multiSection && section)
-      rows += '<tr class="section-row"><td colspan="4">' + section + '</td></tr>'
+      rows += '<tr class="section-row"><td colspan="5">' + escHtml(section) + '</td></tr>'
     ms.forEach(m => {
       const dir = m.outOfRangeDirection
       const cls = !m.isOutOfRange ? 'val-ok' : (dir === 'high' ? 'val-high' : 'val-low')
       const arrow = !m.isOutOfRange ? '' : (dir === 'high' ? '<span class="arrow">▲</span>' : '<span class="arrow">▼</span>')
-      const ref = (m.referenceMin != null && m.referenceMax != null)
-        ? m.referenceMin + ' – ' + m.referenceMax
-        : (m.referenceRaw || '—')
+      const rawVal    = m.value        ?? ''
+      const rawUnit   = m.unit         ?? ''
+      const rawRefMin = m.referenceMin ?? ''
+      const rawRefMax = m.referenceMax ?? ''
+      const edited    = m.isEdited ? ' title="отредактировано" style="opacity:.7"' : ''
+
       rows += '<tr>' +
-        '<td class="td-name">' + m.name + '</td>' +
-        '<td class="td-val ' + cls + '">' + (m.value ?? '—') + arrow + '</td>' +
-        '<td class="td-unit">' + (m.unit || '') + '</td>' +
-        '<td class="td-ref">' + ref + '</td>' +
+        '<td class="td-name td-editable" data-raw="' + escHtml(m.name) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'name\')"' + edited + '>' + escHtml(m.name) + '</td>' +
+        '<td class="td-val td-editable ' + cls + '" data-raw="' + escHtml(String(rawVal)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'value\')">' + (m.value != null ? m.value : '—') + arrow + '</td>' +
+        '<td class="td-unit td-editable" data-raw="' + escHtml(rawUnit) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'unit\')">' + escHtml(m.unit || '—') + '</td>' +
+        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMin)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'referenceMin\')">' + (m.referenceMin != null ? m.referenceMin : '—') + '</td>' +
+        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMax)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'referenceMax\')">' + (m.referenceMax != null ? m.referenceMax : '—') + '</td>' +
         '</tr>'
     })
   })
 
   return '<table><thead><tr>' +
-    '<th>Показатель</th><th>Значение</th><th>Ед.</th><th>Норма</th>' +
+    '<th>Показатель</th><th>Значение</th><th>Ед.</th><th>Мин</th><th>Макс</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>'
 }
 
-// ── card factory ────────────────────────────────────────────────
+// ── inline cell editing ──────────────────────────────────────────
+async function editCell(td, analysisId, markerId, field) {
+  if (td.querySelector('input')) return
+
+  const isNum = field === 'value' || field === 'referenceMin' || field === 'referenceMax'
+  const raw   = td.dataset.raw !== undefined ? td.dataset.raw : ''
+
+  const inp = document.createElement('input')
+  inp.type  = isNum ? 'number' : 'text'
+  inp.step  = 'any'
+  inp.value = raw
+  td.innerHTML = ''
+  td.appendChild(inp)
+  inp.focus(); inp.select()
+
+  let committed = false
+
+  async function commit() {
+    if (committed) return
+    committed = true
+
+    const val = inp.value.trim()
+    const unchanged = (val === raw) || (val === '' && raw === '')
+    if (unchanged) { restoreCell(td, field, raw); return }
+
+    // Optimistic dim while saving
+    td.innerHTML = '<span style="opacity:.35">' + escHtml(val || '—') + '</span>'
+
+    const body = {}
+    body[field] = isNum ? (val === '' ? null : parseFloat(val)) : (val || null)
+
+    try {
+      const m = await apiFetch('PATCH', '/analysis/' + analysisId + '/markers/' + markerId, body)
+      // Rebuild the cell with updated data
+      refreshValueCell(td, field, m, analysisId, markerId)
+    } catch (e) {
+      restoreCell(td, field, raw)
+      td.style.outline = '1px solid #f87171'
+      setTimeout(() => { td.style.outline = '' }, 1800)
+    }
+  }
+
+  function cancel() {
+    if (committed) return
+    committed = true
+    inp.removeEventListener('blur', commit)
+    restoreCell(td, field, raw)
+  }
+
+  inp.addEventListener('blur', commit)
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur() }
+    if (e.key === 'Escape') { e.preventDefault(); cancel() }
+  })
+}
+
+function restoreCell(td, field, raw) {
+  td.innerHTML = raw || '—'
+}
+
+function refreshValueCell(td, field, m, analysisId, markerId) {
+  td.dataset.raw = ''
+  td.onclick = null
+
+  if (field === 'value') {
+    const dir = m.outOfRangeDirection
+    const cls = !m.isOutOfRange ? 'val-ok' : dir === 'high' ? 'val-high' : 'val-low'
+    const arrow = !m.isOutOfRange ? '' : (dir === 'high' ? '<span class="arrow">▲</span>' : '<span class="arrow">▼</span>')
+    td.className = 'td-val td-editable ' + cls
+    td.innerHTML = (m.value != null ? m.value : '—') + arrow
+    td.dataset.raw = m.value ?? ''
+  } else if (field === 'name') {
+    td.className = 'td-name td-editable'
+    td.innerHTML = escHtml(m.name)
+    td.dataset.raw = m.name
+  } else if (field === 'unit') {
+    td.className = 'td-unit td-editable'
+    td.innerHTML = escHtml(m.unit || '—')
+    td.dataset.raw = m.unit ?? ''
+  } else if (field === 'referenceMin') {
+    td.className = 'td-ref td-editable'
+    td.innerHTML = m.referenceMin != null ? String(m.referenceMin) : '—'
+    td.dataset.raw = m.referenceMin ?? ''
+  } else if (field === 'referenceMax') {
+    td.className = 'td-ref td-editable'
+    td.innerHTML = m.referenceMax != null ? String(m.referenceMax) : '—'
+    td.dataset.raw = m.referenceMax ?? ''
+  }
+
+  td.style.outline = '1px solid #34d399'
+  setTimeout(() => { td.style.outline = '' }, 1200)
+
+  // Re-attach onclick (use string form so it works after innerHTML replace)
+  td.setAttribute('onclick', 'editCell(this,' + analysisId + ',' + markerId + ',"' + field + '")')
+}
+
+// ── card factory ─────────────────────────────────────────────────
 function createCard({ id, name, status, date, clickable }) {
   const cardId = 'card-' + id
   const icon = { done: '📋', failed: '❌', pending: '⏳', processing: '⚙️', timeout: '⌛' }[status] || '📄'
@@ -316,7 +457,7 @@ function createCard({ id, name, status, date, clickable }) {
     '<div class="card-header' + (clickable ? '' : ' no-click') + '" data-id="' + id + '">' +
       '<span class="card-icon">' + icon + '</span>' +
       '<div class="card-title">' +
-        '<div class="card-name" title="' + (name || '') + '">' + (name || 'Без имени') + '</div>' +
+        '<div class="card-name" title="' + escHtml(name || '') + '">' + escHtml(name || 'Без имени') + '</div>' +
         (date ? '<div class="card-date">' + fmtDate(date) + '</div>' : '') +
       '</div>' +
       '<span class="badge badge-' + status + '">' + status + '</span>' +
@@ -331,7 +472,6 @@ function createCard({ id, name, status, date, clickable }) {
 }
 
 async function toggleCard(el, analysisId) {
-  const header  = el.querySelector('.card-header')
   const body    = el.querySelector('.card-body')
   const chevron = el.querySelector('.chevron')
   const isOpen  = body.classList.contains('open')
@@ -347,9 +487,9 @@ async function toggleCard(el, analysisId) {
   try {
     const a = await apiFetch('GET', '/analysis/' + analysisId)
     body.dataset.loaded = '1'
-    body.innerHTML = buildMetaHtml(a) + buildMarkersHtml(a.markers)
+    body.innerHTML = buildMetaHtml(a) + buildMarkersHtml(a.markers, analysisId)
   } catch (e) {
-    body.innerHTML = '<div class="err" style="margin:12px">' + e.message + '</div>'
+    body.innerHTML = '<div class="err" style="margin:12px">' + escHtml(e.message) + '</div>'
   }
 }
 
@@ -360,7 +500,7 @@ function setBadge(el, status) {
   const ci = el.querySelector('.card-icon'); if (ci) ci.textContent = icon
 }
 
-// ── history ─────────────────────────────────────────────────────
+// ── history ──────────────────────────────────────────────────────
 async function loadHistory() {
   const list = document.getElementById('history-list')
   list.innerHTML = '<div class="empty-state">Загрузка...</div>'
@@ -378,7 +518,7 @@ async function loadHistory() {
       list.appendChild(card)
     })
   } catch (e) {
-    list.innerHTML = '<div class="err" style="margin:12px">' + e.message + '</div>'
+    list.innerHTML = '<div class="err" style="margin:12px">' + escHtml(e.message) + '</div>'
   }
 }
 
@@ -420,10 +560,10 @@ document.getElementById('link-back').addEventListener('click', () => {
 })
 
 document.getElementById('btn-verify').addEventListener('click', async () => {
-  const email = document.getElementById('email').value.trim()
-  const code  = document.getElementById('code').value.trim()
-  const isNew = document.getElementById('reg-fields').style.display !== 'none'
-  const btn   = document.getElementById('btn-verify')
+  const email  = document.getElementById('email').value.trim()
+  const code   = document.getElementById('code').value.trim()
+  const isNew  = document.getElementById('reg-fields').style.display !== 'none'
+  const btn    = document.getElementById('btn-verify')
   btn.disabled = true; btn.textContent = 'Проверка...'
   setErr('err-otp', '')
   try {
@@ -462,7 +602,7 @@ function clearSession() {
 document.getElementById('link-logout').addEventListener('click', clearSession)
 
 // ── drop zone ────────────────────────────────────────────────────
-const dropZone = document.getElementById('drop-zone')
+const dropZone  = document.getElementById('drop-zone')
 const fileInput = document.getElementById('file-input')
 
 dropZone.addEventListener('click', () => fileInput.click())
@@ -480,59 +620,81 @@ function handleFiles(files) {
 
 // ── upload ───────────────────────────────────────────────────────
 async function uploadFile(file) {
-  const tmpId = 'tmp-' + Math.random().toString(36).slice(2)
   const newList = document.getElementById('new-list')
   show('new-section')
 
-  const card = createCard({ id: tmpId, name: file.name, status: 'pending', date: null, clickable: false })
+  const card = createCard({ id: 'tmp-' + Math.random().toString(36).slice(2), name: file.name, status: 'pending', date: null, clickable: false })
   newList.prepend(card)
 
   try {
+    const analysisType = document.getElementById('analysis-type').value
+
     const form = new FormData()
     form.append('file', file)
+    if (analysisType) form.append('analysisType', analysisType)
+
     const result = await apiFetch('POST', '/analysis/upload', form, true)
     const analysisId = result.analysisId ?? result[0]?.analysisId
 
-    // Ждём SSE
+    // SSE — ReadableStream approach (решение 1g)
     const res = await fetch(API + '/analysis/' + analysisId + '/events', {
       headers: { 'Authorization': 'Bearer ' + token }
     })
-    const text = await res.text()
-    const match = text.match(/data: (.+)/)
-    const status = match ? JSON.parse(match[1]).status : 'failed'
 
+    const reader  = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer    = ''
+    let lastStatus = 'failed'
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split('\\n\\n')
+      buffer = parts.pop() ?? ''
+      for (const part of parts) {
+        if (part.startsWith('data: ')) {
+          try {
+            const event = JSON.parse(part.slice(6))
+            lastStatus = event.status
+            setBadge(card, event.status)
+          } catch { /* skip malformed */ }
+        }
+      }
+    }
+
+    const status = lastStatus
     setBadge(card, status)
 
     if (status === 'done') {
-      // Открываем заголовок для клика и загружаем детали
       const header = card.querySelector('.card-header')
       header.dataset.id = analysisId
       header.classList.remove('no-click')
-      header.insertAdjacentHTML('beforeend', '<span class="chevron">›</span>')
+      header.insertAdjacentHTML('beforeend', '<span class="chevron open">›</span>')
       header.addEventListener('click', () => toggleCard(card, analysisId))
 
-      // Сразу раскрываем результат
       const body = card.querySelector('.card-body')
       body.classList.add('open')
       body.innerHTML = '<div class="card-loading">Загрузка результатов...</div>'
+
       const a = await apiFetch('GET', '/analysis/' + analysisId)
       body.dataset.loaded = '1'
-      body.innerHTML = buildMetaHtml(a) + buildMarkersHtml(a.markers)
-      card.querySelector('.chevron').classList.add('open')
+      body.innerHTML = buildMetaHtml(a) + buildMarkersHtml(a.markers, analysisId)
     }
 
-    // Обновляем историю
     await loadHistory()
   } catch (e) {
     setBadge(card, 'failed')
-    card.querySelector('.card-body').innerHTML =
-      '<div class="err" style="margin:12px">' + e.message + '</div>'
-    card.querySelector('.card-body').classList.add('open')
+    const body = card.querySelector('.card-body')
+    body.innerHTML = '<div class="err" style="margin:12px">' + escHtml(e.message) + '</div>'
+    body.classList.add('open')
   }
 }
 </script>
 </body>
 </html>`
+
+export { HTML }
 
 const devtoolsRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.get('/dev/upload', async (_request, reply) => {

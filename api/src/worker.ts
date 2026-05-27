@@ -16,12 +16,14 @@ type AnalysisJobData = {
     analysisId: number
     fileKey: string
     mimeType: string
+    analysisType?: string
+    ocrProvider?: string
 }
 
 const worker = new Worker<AnalysisJobData>(
     'analysis',
     async (job) => {
-        const { analysisId, fileKey, mimeType } = job.data
+        const { analysisId, fileKey, mimeType, analysisType, ocrProvider } = job.data
         const log = logger.child({ jobId: job.id, analysisId })
 
         log.info('job started')
@@ -42,15 +44,34 @@ const worker = new Worker<AnalysisJobData>(
             return
         }
 
+        // Mark as processing so UI badge updates
+        await db
+            .update(analyses)
+            .set({ status: 'processing', updatedAt: new Date() })
+            .where(eq(analyses.id, analysisId))
+
+        await redis.publish(`analysis:${analysisId}`, JSON.stringify({ status: 'processing', analysisId }))
+        log.info('status set to processing')
+
         try {
             const buffer = await getFileBuffer(fileKey)
-            const result = await ocrService.parseLabResult(buffer, mimeType)
+            const result = await ocrService.parseLabResult(buffer, mimeType, analysisType)
 
             log.info({ markerCount: result.markers.length }, 'parsed markers')
 
+            // Deduplicate by name — OCR may return the same marker twice
+            const seen = new Set<string>()
+            const uniqueMarkers = result.markers.filter((m: { name: string }) => {
+                if (seen.has(m.name)) return false
+                seen.add(m.name)
+                return true
+            })
+
+            const analysisTypes = [...new Set(uniqueMarkers.map((m: { section: string }) => m.section))].join(',')
+
             await db.transaction(async (tx) => {
                 await tx.insert(markers).values(
-                    result.markers.map((marker) => ({
+                    uniqueMarkers.map((marker) => ({
                         analysisId,
                         name: marker.name,
                         code: marker.code,
@@ -73,6 +94,8 @@ const worker = new Worker<AnalysisJobData>(
                     .update(analyses)
                     .set({
                         status: 'done',
+                        analysisTypes,
+                        ocrProvider: ocrProvider ?? config.OCR_PROVIDER,
                         labName: result.lab?.name,
                         labAddress: result.lab?.address,
                         labPhone: result.lab?.phone,

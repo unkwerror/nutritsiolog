@@ -1,0 +1,146 @@
+{
+  "lab": {
+    "name": "ГЕМОТЕСТ",
+    "address": "г. Москва, ул. Профсоюзная, 45",
+    "phone": "+7 (800) 550-13-13"
+  },
+  "patient": {
+    "fullName": "Петрова Светлана Николаевна",
+    "gender": "female",
+    "birthDate": "1979-04-22",
+    "age": 46
+  },
+  "order": {
+    "id": "98765432",
+    "sampleTakenAt": "2025-03-05",
+    "reportDate": "2025-03-06"
+  },
+  "markers": [
+    {
+      "name": "АЛТ (ALT)",
+      "code": "ALT",
+      "section": "Функция печени и поджелудочной",
+      "value": 48.5,
+      "unit": "ед/л",
+      "referenceMin": 10,
+      "referenceMax": 26,
+      "referenceRaw": "10 - 26",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": "UV IFCC"
+    },
+    {
+      "name": "АСТ (AST)",
+      "code": "AST",
+      "section": "Функция печени и поджелудочной",
+      "value": 38.0,
+      "unit": "ед/л",
+      "referenceMin": 10,
+      "referenceMax": 26,
+      "referenceRaw": "10 - 26",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": "UV IFCC"
+    },
+    {
+      "name": "ГГТП (GGT)",
+      "code": "GGT",
+      "section": "Функция печени и поджелудочной",
+      "value": 22.0,
+      "unit": "ед/л",
+      "referenceMin": 10,
+      "referenceMax": 30,
+      "referenceRaw": "10 - 30",
+      "isOutOfRange": false,
+      "outOfRangeDirection": null,
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Общий билирубин",
+      "code": "TBIL",
+      "section": "Функция печени и поджелудочной",
+      "value": 18.2,
+      "unit": "мкмоль/л",
+      "referenceMin": 5.1,
+      "referenceMax": 15.4,
+      "referenceRaw": "5,1 - 15,4",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Общий белок",
+      "code": "TP",
+      "section": "Белковый обмен",
+      "value": 68.0,
+      "unit": "г/л",
+      "referenceMin": 70,
+      "referenceMax": 74,
+      "referenceRaw": "70 - 74",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Альбумин",
+      "code": "ALB",
+      "section": "Белковый обмен",
+      "value": 42.0,
+      "unit": "г/л",
+      "referenceMin": 40,
+      "referenceMax": 50,
+      "referenceRaw": "40 - 50",
+      "isOutOfRange": false,
+      "outOfRangeDirection": null,
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Глюкоза",
+      "code": "GLU",
+      "section": "Углеводный обмен",
+      "value": 5.8,
+      "unit": "ммоль/л",
+      "referenceMin": 4.16,
+      "referenceMax": 4.77,
+      "referenceRaw": "4,16 - 4,77",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Мочевина",
+      "code": "UREA",
+      "section": "Белковый обмен",
+      "value": 4.2,
+      "unit": "ммоль/л",
+      "referenceMin": 3.57,
+      "referenceMax": 5.71,
+      "referenceRaw": "3,57 - 5,71",
+      "isOutOfRange": false,
+      "outOfRangeDirection": null,
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Креатинин",
+      "code": "CREA",
+      "section": "Мочевая кислота",
+      "value": 62.0,
+      "unit": "мкмоль/л",
+      "referenceMin": 70.7,
+      "referenceMax": 97.2,
+      "referenceRaw": "70,7 - 97,2",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": null
+    }
+  ]
+}

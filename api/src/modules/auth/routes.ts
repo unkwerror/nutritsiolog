@@ -59,7 +59,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
         },
         async (request, reply) => {
             const repo = new UsersRepository(request.server.db)
-            const user = await repo.findById(request.user.id)
+            const user = await repo.findByIdPublic(request.user.id)
             if (!user) throw new UnauthorizedError('UNAUTHORIZED')
             return reply.send(user)
         }
@@ -145,7 +145,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 response: { 200: z.object({ accessToken: z.string() }) },
             },
         },
-        async (request, _reply) => {
+        async (request, reply) => {
             const token = request.cookies?.refreshToken
             if (!token) throw new UnauthorizedError('UNAUTHORIZED')
 
@@ -159,10 +159,22 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const userId = await redis.get(`refresh:${payload.jti}`)
             if (!userId) throw new UnauthorizedError('UNAUTHORIZED')
 
-            const accessToken = fastify.jwt.sign(
-                { id: payload.id, email: payload.email },
-                { expiresIn: ACCESS_TTL }
-            )
+            await redis.del(`refresh:${payload.jti}`)
+
+            const { accessToken, refreshToken: newRefreshToken, jti: newJti } = buildTokens(fastify, {
+                id: payload.id,
+                email: payload.email,
+            })
+            await redis.setex(`refresh:${newJti}`, REFRESH_TTL_SEC, payload.id)
+
+            reply.setCookie('refreshToken', newRefreshToken, {
+                httpOnly: true,
+                secure: config.NODE_ENV === 'production',
+                sameSite: 'lax',
+                path: REFRESH_COOKIE_PATH,
+                maxAge: REFRESH_TTL_SEC,
+            })
+
             return { accessToken }
         }
     )

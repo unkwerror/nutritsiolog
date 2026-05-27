@@ -15,6 +15,8 @@ const logger: Logger = pino({
             '*.password',
             '*.hash',
             '*.token',
+            'code',
+            '*.code',
             'req.headers.authorization',
             'req.headers.cookie',
         ],

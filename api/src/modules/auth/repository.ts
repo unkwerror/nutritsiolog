@@ -32,6 +32,30 @@ export class UsersRepository {
         return user ?? null
     }
 
+    async findByIdPublic(id: string) {
+        const [user] = await this.db
+            .select({
+                id: users.id,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                middleName: users.middleName,
+                gender: users.gender,
+                dateOfBirth: users.dateOfBirth,
+                timezone: users.timezone,
+                email: users.email,
+                phone: users.phone,
+                emailVerifiedAt: users.emailVerifiedAt,
+                phoneVerifiedAt: users.phoneVerifiedAt,
+                consentPd: users.consentPd,
+                consentMedicalData: users.consentMedicalData,
+                createdAt: users.createdAt,
+                updatedAt: users.updatedAt,
+            })
+            .from(users)
+            .where(eq(users.id, id))
+        return user ?? null
+    }
+
     async setEmailVerified(id: string) {
         await this.db
             .update(users)

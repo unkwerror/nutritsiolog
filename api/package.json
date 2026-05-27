@@ -38,7 +38,6 @@
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.6",
     "@google/genai": "^2.1.0",
-    "bcrypt": "^6.0.0",
     "bullmq": "^5.76.8",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
@@ -54,7 +53,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/bcrypt": "^6.0.0",
     "@types/node": "^24.12.4",
     "@types/nodemailer": "^8.0.0",
     "drizzle-kit": "^0.31.10",

@@ -25,7 +25,7 @@ export class GeminiAdapter implements OcrService {
         this.maxRetries = cfg.maxRetries ?? 3
     }
 
-    async parseLabResult(buffer: Buffer, mimeType = 'application/pdf'): Promise<LabResult> {
+    async parseLabResult(buffer: Buffer, mimeType = 'application/pdf', _analysisType?: string): Promise<LabResult> {
         return this.callWithRetry(buffer, mimeType, this.maxRetries)
     }
 

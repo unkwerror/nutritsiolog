@@ -1,12 +1,12 @@
 import { z } from 'zod'
 import { sql } from 'drizzle-orm'
-import { type FastifyInstance } from 'fastify'
+import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { analysisQueue } from '../../queues/analysisQueue.js'
 import { ensureBucket } from '../../services/storage.js'
 import { transporter } from '../../core/mailer.js'
 
 const HealthSchema = z.object({
-    status: z.enum(['ok', 'degraded']),
+    status: z.enum(['ok', 'degraded', 'down']),
     checks: z.object({
         pg: z.boolean(),
         redis: z.boolean(),
@@ -15,7 +15,7 @@ const HealthSchema = z.object({
     }),
 })
 
-export default async function healthRoutes(fastify: FastifyInstance) {
+const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.get(
         '/health',
         {
@@ -55,10 +55,14 @@ export default async function healthRoutes(fastify: FastifyInstance) {
                 /* noop */
             }
 
-            const ok = pg && redis && minio && smtp
+            const checks = { pg, redis, minio, smtp }
+            const isCritical = pg && redis && minio
+
             return reply
-                .code(ok ? 200 : 503)
-                .send({ status: ok ? 'ok' : 'degraded', checks: { pg, redis, minio, smtp } })
+                .code(isCritical ? 200 : 503)
+                .send({ status: isCritical ? (smtp ? 'ok' : 'degraded') : 'down', checks })
         }
     )
 }
+
+export default healthRoutes

@@ -1,6 +1,15 @@
 import { z }                  from 'zod'
-import logger                  from '../core/logger.js'
 import { OcrValidationError }  from './errors.js'
+
+// Converts any value to number, returning null for non-finite results ("не обнаружено", "21 год", etc.)
+const safeNumber = z.preprocess(
+    (v: unknown) => {
+        if (v === null || v === undefined || v === '') return null
+        const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+        return Number.isFinite(n) ? n : null
+    },
+    z.number().nullable()
+)
 
 const labSchema = z.object({
     name:    z.string(),
@@ -12,7 +21,7 @@ const patientSchema = z.object({
     fullName:  z.string(),
     gender:    z.enum(['male', 'female']).nullable(),
     birthDate: z.string().nullable(),
-    age:       z.coerce.number().nullable()
+    age:       safeNumber
 })
 
 const orderSchema = z.object({
@@ -25,11 +34,11 @@ const markerSchema = z.object({
     name:                z.string(),
     code:                z.string().nullable(),
     section:             z.string(),
-    value:               z.coerce.number().nullable(),
+    value:               safeNumber,
     unit:                z.string().nullable(),
-    referenceMin:        z.coerce.number().nullable(),
-    referenceMax:        z.coerce.number().nullable(),
-    referenceRaw:        z.string().nullable(),
+    referenceMin:        safeNumber.optional().transform(v => v ?? null),
+    referenceMax:        safeNumber.optional().transform(v => v ?? null),
+    referenceRaw:        z.string().nullable().optional().transform(v => v ?? null),
     isOutOfRange:        z.boolean(),
     outOfRangeDirection: z.enum(['low', 'high']).nullable(),
     comment:             z.string().nullable(),
@@ -46,53 +55,6 @@ const labResultSchema = z.object({
 export type Marker    = z.infer<typeof markerSchema>
 export type LabResult = z.infer<typeof labResultSchema>
 
-// Разумные границы для известных маркеров — ловим галлюцинации Gemini
-const SANITY_RANGES: Partial<Record<string, { min?: number; max?: number }>> = {
-    HGB:  { min: 0, max: 500 },
-    FERR: { min: 0 },
-    WBC:  { min: 0, max: 1000 },
-    GLU:  { min: 0, max: 200 },
-    TSH:  { min: 0, max: 500 },
-}
-
-function sanityCheck(marker: Marker): void {
-    if (marker.value === null || !marker.code) return
-    const range = SANITY_RANGES[marker.code]
-    if (!range) return
-
-    const tooLow  = range.min !== undefined && marker.value < range.min
-    const tooHigh = range.max !== undefined && marker.value > range.max
-
-    if (tooLow || tooHigh) {
-        throw new OcrValidationError(
-            `Marker ${marker.code} value ${marker.value} is outside sanity range [${range.min ?? '-∞'}, ${range.max ?? '+∞'}]`
-        )
-    }
-}
-
-function correctMarker(marker: Marker): Marker {
-    if (marker.value === null) return marker
-
-    const tooLow      = marker.referenceMin !== null && marker.value < marker.referenceMin
-    const tooHigh     = marker.referenceMax !== null && marker.value > marker.referenceMax
-    const computedOOR = tooLow || tooHigh
-
-    if (computedOOR !== marker.isOutOfRange) {
-        logger.warn(
-            { markerName: marker.name, geminiIsOutOfRange: marker.isOutOfRange, computedIsOutOfRange: computedOOR },
-            'OCR isOutOfRange mismatch'
-        )
-    }
-
-    if (computedOOR === marker.isOutOfRange) return marker
-
-    return {
-        ...marker,
-        isOutOfRange:        computedOOR,
-        outOfRangeDirection: tooLow ? 'low' : tooHigh ? 'high' : null
-    }
-}
-
 export function validateLabResult(raw: unknown): LabResult {
     if (typeof raw === 'object' && raw !== null && 'notALabResult' in raw) {
         throw new OcrValidationError('NOT_LAB_RESULT: Document is not a medical lab result')
@@ -103,8 +65,5 @@ export function validateLabResult(raw: unknown): LabResult {
         throw new OcrValidationError(`Invalid OCR response schema: ${result.error.message}`)
     }
 
-    const corrected = result.data.markers.map(correctMarker)
-    corrected.forEach(sanityCheck)
-
-    return { ...result.data, markers: corrected }
+    return result.data
 }

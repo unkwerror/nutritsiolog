@@ -1,0 +1,76 @@
+{
+  "lab": {
+    "name": "ИНВИТРО",
+    "address": "г. Москва, ул. Садовая-Кудринская, 12",
+    "phone": "+7 (800) 200-36-36"
+  },
+  "patient": {
+    "fullName": "Козлов Андрей Петрович",
+    "gender": "male",
+    "birthDate": "1970-06-30",
+    "age": 55
+  },
+  "order": {
+    "id": "INV-2025-778844",
+    "sampleTakenAt": "2025-01-28",
+    "reportDate": "2025-01-29"
+  },
+  "markers": [
+    {
+      "name": "Общий холестерин",
+      "code": "CHOL",
+      "section": "Жировой обмен",
+      "value": 6.4,
+      "unit": "ммоль/л",
+      "referenceMin": 4.14,
+      "referenceMax": 4.65,
+      "referenceRaw": "4,14 - 4,65",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "ЛПНП (LDL)",
+      "code": "LDL",
+      "section": "Жировой обмен",
+      "value": 4.1,
+      "unit": "ммоль/л",
+      "referenceMin": 2.07,
+      "referenceMax": 2.59,
+      "referenceRaw": "2,07 - 2,59",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": "Значительное превышение оптимума — высокий кардиоваскулярный риск",
+      "method": null
+    },
+    {
+      "name": "ЛПВП (HDL)",
+      "code": "HDL",
+      "section": "Жировой обмен",
+      "value": 1.1,
+      "unit": "ммоль/л",
+      "referenceMin": 1.42,
+      "referenceMax": 1.81,
+      "referenceRaw": "1,42 - 1,81",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": null
+    },
+    {
+      "name": "Триглицериды (TG)",
+      "code": "TG",
+      "section": "Жировой обмен",
+      "value": 2.3,
+      "unit": "ммоль/л",
+      "referenceMin": 0.79,
+      "referenceMax": 0.9,
+      "referenceRaw": "0,79 - 0,9",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": null,
+      "method": null
+    }
+  ]
+}

@@ -24,6 +24,11 @@ const ConfigSchema = z.object({
     GEMINI_API_KEY: z.string().optional(),
     SOCKS_PROXY: z.string().optional(),
 
+    YANDEX_API_KEY: z.string().optional(),
+    YANDEX_FOLDER_ID: z.string().optional(),
+
+    DEMO_ACCESS_KEY: z.string().optional(),
+
     CORS_ORIGIN: z.string().default('http://localhost:3000'),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 

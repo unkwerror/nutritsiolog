@@ -10,10 +10,21 @@ import {
     timestamp,
     date,
     index,
-    uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 export const genderEnum = pgEnum('gender', ['male', 'female'])
+
+export const analysisTypeEnum = pgEnum('analysis_type', [
+    'cbc',
+    'protein',
+    'carb',
+    'liver',
+    'lipid',
+    'thyroid',
+    'electrolytes',
+    'iron',
+    'inflammation',
+])
 
 export const users = pgTable(
     'users',
@@ -70,6 +81,11 @@ export const analyses = pgTable(
         fileSize: integer('file_size'),
 
         status: varchar('status', { length: 20 }).notNull().default('pending'),
+        analysisTypes: text('analysis_types'),
+        analysisType: varchar('analysis_type', { length: 20 }),
+        typeSource: varchar('type_source', { length: 10 }).notNull().default('manual'),
+        ocrProvider: varchar('ocr_provider', { length: 20 }),
+        ocrRawText: text('ocr_raw_text'),
         isArchived: boolean('is_archived').notNull().default(false),
 
         createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -99,12 +115,16 @@ export const markers = pgTable(
         isOutOfRange: boolean('is_out_of_range').notNull().default(false),
         outOfRangeDirection: varchar('out_of_range_direction', { length: 10 }),
 
+        isEdited: boolean('is_edited').notNull().default(false),
+        originalValue: numeric('original_value', { precision: 12, scale: 4 }),
+
         comment: text('comment'),
         method: varchar('method', { length: 255 }),
+
+        createdAt: timestamp('created_at').defaultNow().notNull(),
     },
     (table) => [
         index('markers_analysis_id_idx').on(table.analysisId),
-        uniqueIndex('markers_analysis_id_name_unique').on(table.analysisId, table.name),
     ]
 )
 

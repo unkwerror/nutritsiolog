@@ -5,6 +5,7 @@ import { AnalysisRepository } from './repository.js'
 import { AnalysisService } from './service.js'
 import { ValidationError } from '../../core/errors.js'
 import { createSubscriber } from '../../core/redis.js'
+import { config } from '../../core/config.js'
 
 const AnalysisResultSchema = z.object({
     analysisId: z.number(),
@@ -23,13 +24,27 @@ const MarkerSchema = z.object({
     referenceRaw: z.string().nullable(),
     isOutOfRange: z.boolean(),
     outOfRangeDirection: z.string().nullable(),
+    isEdited: z.boolean(),
+    originalValue: z.string().nullable(),
     comment: z.string().nullable(),
     method: z.string().nullable(),
+})
+
+const MarkerEditSchema = z.object({
+    value: z.number().nullable().optional(),
+    unit: z.string().nullable().optional(),
+    referenceMin: z.number().nullable().optional(),
+    referenceMax: z.number().nullable().optional(),
+    name: z.string().min(1).optional(),
+    comment: z.string().nullable().optional(),
 })
 
 const AnalysisListItemSchema = z.object({
     id: z.number(),
     status: z.string(),
+    analysisTypes: z.string().nullable(),
+    analysisType: z.string().nullable(),
+    typeSource: z.string(),
     labName: z.string().nullable(),
     fileOriginalName: z.string().nullable(),
     fileMimeType: z.string().nullable(),
@@ -67,14 +82,22 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
         },
         async (request, reply) => {
             const files: Array<{ buffer: Buffer; mimeType: string; originalName: string }> = []
+            let analysisType: string | undefined
 
-            for await (const part of request.files()) {
-                const buffer = await part.toBuffer()
-                files.push({ buffer, mimeType: part.mimetype, originalName: part.filename })
+            for await (const part of request.parts()) {
+                if (part.type === 'file') {
+                    const buffer = await part.toBuffer()
+                    files.push({ buffer, mimeType: part.mimetype, originalName: part.filename })
+                } else if (part.fieldname === 'analysisType' && typeof part.value === 'string' && part.value) {
+                    analysisType = part.value
+                }
             }
 
             const service = new AnalysisService(new AnalysisRepository(request.server.db))
-            const result = await service.createAnalysis(request.user.id, files)
+            const result = await service.createAnalysis(request.user.id, files, {
+                analysisType,
+                ocrProvider: config.OCR_PROVIDER,
+            })
 
             return reply.code(202).send(result)
         }
@@ -104,7 +127,7 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 tags: ['Analysis'],
                 security: [{ bearerAuth: [] }],
                 params: z.object({ id: z.string() }),
-                description: 'SSE stream: sends one event when OCR completes or fails',
+                description: 'SSE stream: sends events when OCR status changes',
             },
             preHandler: [fastify.authenticate],
         },
@@ -113,14 +136,13 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             if (!Number.isInteger(numId) || numId < 1)
                 throw new ValidationError('INVALID_ID', 'Invalid analysis id')
 
-            // Hijack response — Fastify не будет сам ничего отправлять
             reply.hijack()
             const raw = reply.raw
 
             raw.setHeader('Content-Type', 'text/event-stream')
             raw.setHeader('Cache-Control', 'no-cache')
             raw.setHeader('Connection', 'keep-alive')
-            raw.setHeader('X-Accel-Buffering', 'no') // отключает буферизацию в Nginx
+            raw.setHeader('X-Accel-Buffering', 'no')
 
             const repo = new AnalysisRepository(request.server.db)
             const sub = createSubscriber()
@@ -136,10 +158,16 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 }
             }
 
-            // Подписываемся ДО проверки БД — иначе worker может опубликовать
-            // между проверкой и подпиской и событие потеряется
+            const sendEvent = (data: { status: string; analysisId: number }) => {
+                if (closed || raw.destroyed) return
+                raw.write(`data: ${JSON.stringify(data)}\n\n`)
+                if (data.status === 'done' || data.status === 'failed') {
+                    finish(data)
+                }
+            }
+
             sub.on('message', (_ch: string, msg: string) => {
-                finish(JSON.parse(msg) as { status: string; analysisId: number })
+                sendEvent(JSON.parse(msg) as { status: string; analysisId: number })
             })
 
             await sub.subscribe(`analysis:${numId}`)
@@ -157,14 +185,16 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 return
             }
 
-            // Анализ уже готов — отвечаем сразу
             if (analysis.status === 'done' || analysis.status === 'failed') {
                 finish({ status: analysis.status, analysisId: numId })
                 return
             }
 
-            // Таймаут 5 минут — OCR max 60с × 3 попытки + запас
-            // const здесь: timer объявлен после finish и используется только ниже
+            // Send current status immediately so client knows we're connected
+            if (!raw.destroyed) {
+                raw.write(`data: ${JSON.stringify({ status: analysis.status, analysisId: numId })}\n\n`)
+            }
+
             const timer = setTimeout(
                 () => {
                     finish({ status: 'timeout', analysisId: numId })
@@ -184,7 +214,6 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
     fastify.get(
         '/analysis/:id',
-
         {
             schema: {
                 tags: ['Analysis'],
@@ -203,6 +232,32 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const analysis = await service.getAnalysis(numId, request.user.id)
 
             return reply.send(analysis)
+        }
+    )
+
+    fastify.patch(
+        '/analysis/:analysisId/markers/:markerId',
+        {
+            schema: {
+                tags: ['Analysis'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({
+                    analysisId: z.coerce.number().int().positive(),
+                    markerId: z.coerce.number().int().positive(),
+                }),
+                body: MarkerEditSchema,
+                response: { 200: MarkerSchema },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const updated = await service.updateMarker(
+                request.params.markerId,
+                request.user.id,
+                request.body
+            )
+            return reply.send(updated)
         }
     )
 }

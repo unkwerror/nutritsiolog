@@ -1,0 +1,76 @@
+{
+  "lab": {
+    "name": "КДЛ Ситилаб",
+    "address": "г. Санкт-Петербург, пр. Невский, 78",
+    "phone": "+7 (812) 600-01-01"
+  },
+  "patient": {
+    "fullName": "Смирнова Ольга Владимировна",
+    "gender": "female",
+    "birthDate": "1974-09-11",
+    "age": 51
+  },
+  "order": {
+    "id": "SPB-2025-44312",
+    "sampleTakenAt": "2025-02-18",
+    "reportDate": "2025-02-19"
+  },
+  "markers": [
+    {
+      "name": "ТТГ",
+      "code": "TSH",
+      "section": "Гормоны щитовидной железы",
+      "value": 5.82,
+      "unit": "мкМЕ/мл",
+      "referenceMin": 0.9,
+      "referenceMax": 1.9,
+      "referenceRaw": "0,9 - 1,9",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": "Повышение ТТГ может указывать на гипотиреоз",
+      "method": "Электрохемилюминесценция (ECLIA)"
+    },
+    {
+      "name": "Свободный Т4 (FT4)",
+      "code": "FT4",
+      "section": "Гормоны щитовидной железы",
+      "value": 11.2,
+      "unit": "пмоль/л",
+      "referenceMin": 12.9,
+      "referenceMax": 19.0,
+      "referenceRaw": "12,9 - 19,0",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": "Электрохемилюминесценция (ECLIA)"
+    },
+    {
+      "name": "Свободный Т3 (FT3)",
+      "code": "FT3",
+      "section": "Гормоны щитовидной железы",
+      "value": 4.1,
+      "unit": "пмоль/л",
+      "referenceMin": 4.6,
+      "referenceMax": 5.38,
+      "referenceRaw": "4,6 - 5,38",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "low",
+      "comment": null,
+      "method": "Электрохемилюминесценция (ECLIA)"
+    },
+    {
+      "name": "АТ к ТПО",
+      "code": "AT_TPO",
+      "section": "Гормоны щитовидной железы",
+      "value": 142.0,
+      "unit": "ед/мл",
+      "referenceMin": 0,
+      "referenceMax": 20,
+      "referenceRaw": "0 - 20",
+      "isOutOfRange": true,
+      "outOfRangeDirection": "high",
+      "comment": "Значительное повышение АТ-ТПО характерно для аутоиммунного тиреоидита",
+      "method": null
+    }
+  ]
+}

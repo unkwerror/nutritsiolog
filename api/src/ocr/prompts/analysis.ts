@@ -151,24 +151,16 @@ CHOL_RATIO: Коэффициент атерогенности
 - Десятичный разделитель — точка (4.78, не 4,78)
 - Нечисловое значение ("отрицательно", "не обнаружено") → value: null, оригинал в comment
 
-## Референсные значения
-
-В referenceRaw — оригинальная строка. В referenceMin/Max — числа:
-- "4.3 - 5.7"  → referenceMin: 4.3, referenceMax: 5.7
-- "< 41"       → referenceMin: null, referenceMax: 41
-- "> 30"       → referenceMin: 30, referenceMax: null
-- "см.комм"    → ищи диапазон в comment, если не нашёл — оба null
-- отсутствует  → оба null
-
 ## Признак отклонения
 
-isOutOfRange: true если:
+isOutOfRange: true если лаборатория явно пометила значение:
 - После значения стоит * (формат INVITRO)
 - Перед значением ↑ или ↓ (формат HELIX)
-- Буква H (high) или L (low)
-- Значение выходит за referenceMin/referenceMax
+- Буква H (high) или L (low) рядом со значением
 
-outOfRangeDirection: "low" (↓, L, ниже минимума) / "high" (↑, H, выше максимума) / null
+outOfRangeDirection: "low" (↓, L) / "high" (↑, H) / null
+
+Референсные диапазоны лаборатории НЕ извлекаем и НЕ включаем в ответ.
 
 ## Секция (поле section)
 
@@ -206,9 +198,6 @@ outOfRangeDirection: "low" (↓, L, ниже минимума) / "high" (↑, H,
       "section": string,
       "value": number | null,
       "unit": string | null,
-      "referenceMin": number | null,
-      "referenceMax": number | null,
-      "referenceRaw": string | null,
       "isOutOfRange": boolean,
       "outOfRangeDirection": "low" | "high" | null,
       "comment": string | null,
@@ -224,21 +213,21 @@ outOfRangeDirection: "low" (↓, L, ниже минимума) / "high" (↑, H,
 Вход: "Литий  0.35*  ммоль/л  см.комм.  Терапевтический диапазон: 0,40 - 1,20"
 
 Выход:
-{"name":"Литий","code":"LI","section":"Витамины и микроэлементы","value":0.35,"unit":"ммоль/л","referenceMin":0.40,"referenceMax":1.20,"referenceRaw":"см.комм.","isOutOfRange":true,"outOfRangeDirection":"low","comment":"Терапевтический диапазон: 0.40 - 1.20","method":null}
+{"name":"Литий","code":"LI","section":"Витамины и микроэлементы","value":0.35,"unit":"ммоль/л","isOutOfRange":true,"outOfRangeDirection":"low","comment":"Терапевтический диапазон: 0.40 - 1.20","method":null}
 
 ## Пример 2: HELIX, ОАК со стрелками
 
 Вход: "Нейтрофилы, % (NE%)  ↓ 46.0 %  47 - 72"
 
 Выход:
-{"name":"Нейтрофилы, % (NE%)","code":"NE_PCT","section":"Общий анализ крови","value":46.0,"unit":"%","referenceMin":47,"referenceMax":72,"referenceRaw":"47 - 72","isOutOfRange":true,"outOfRangeDirection":"low","comment":null,"method":null}
+{"name":"Нейтрофилы, % (NE%)","code":"NE_PCT","section":"Общий анализ крови","value":46.0,"unit":"%","isOutOfRange":true,"outOfRangeDirection":"low","comment":null,"method":null}
 
 ## Пример 3: HELIX, витамин D
 
 Вход: "Витамин D, 25-гидрокси (кальциферол) / Концентрация  ↓ 25.56 нг/мл  30 - 100"
 
 Выход:
-{"name":"Витамин D, 25-гидрокси (кальциферол)","code":"VIT_D","section":"Витамины и микроэлементы","value":25.56,"unit":"нг/мл","referenceMin":30,"referenceMax":100,"referenceRaw":"30 - 100","isOutOfRange":true,"outOfRangeDirection":"low","comment":"<20 нг/мл - дефицит; 20-30 нг/мл - недостаточность; 30-100 нг/мл - оптимальный уровень.","method":"Иммунохемилюминесцентный анализ"}
+{"name":"Витамин D, 25-гидрокси (кальциферол)","code":"VIT_D","section":"Витамины и микроэлементы","value":25.56,"unit":"нг/мл","isOutOfRange":true,"outOfRangeDirection":"low","comment":"<20 нг/мл - дефицит; 20-30 нг/мл - недостаточность; 30-100 нг/мл - оптимальный уровень.","method":"Иммунохемилюминесцентный анализ"}
 
 Возвращай ТОЛЬКО валидный JSON. Без markdown, без объяснений, без префиксов.`
 

@@ -7,7 +7,7 @@ import { validateLabResult, type LabResult } from '../types.js'
 const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
 export class MockAdapter implements OcrService {
-    async parseLabResult(_buffer: Buffer, _mimeType: string): Promise<LabResult> {
+    async parseLabResult(_buffer: Buffer, _mimeType: string, _analysisType?: string): Promise<LabResult> {
         const all   = await readdir(FIXTURES_DIR)
         const files = all.filter(f => f.endsWith('.json'))
 
