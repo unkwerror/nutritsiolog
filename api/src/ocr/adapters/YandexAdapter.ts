@@ -11,8 +11,10 @@ type YandexAdapterConfig = {
     maxRetries?: number
 }
 
-const VISION_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
-const GPT_URL    = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
+const VISION_SYNC_URL  = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
+const VISION_ASYNC_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeTextAsync'
+const OPERATION_URL    = 'https://operation.api.cloud.yandex.net/operations'
+const GPT_URL          = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
 
 const TEXT_PARSE_PROMPT = `Ниже — текст, распознанный OCR из медицинского лабораторного бланка. Разбери его и верни результат строго по схеме из системного промпта. Если текст не является результатом лабораторного анализа — верни {"notALabResult": true}. Только JSON, без дополнительного текста.\n\nТЕКСТ БЛАНКА:\n`
 
@@ -39,8 +41,20 @@ export class YandexAdapter implements OcrService {
         return this.gptStructure(rawText)
     }
 
-    // Step 1 — Yandex Vision OCR: image or PDF → extracted text
+    // Step 1 — Yandex Vision OCR: sync (1 page) with fallback to async (multi-page)
     private async visionOcr(buffer: Buffer, mimeType: string): Promise<string> {
+        try {
+            return await this.visionOcrSync(buffer, mimeType)
+        } catch (err) {
+            if (err instanceof OcrProviderError && err.statusCode === 400 &&
+                err.message.includes('page limit')) {
+                return await this.visionOcrAsync(buffer, mimeType)
+            }
+            throw err
+        }
+    }
+
+    private async visionOcrSync(buffer: Buffer, mimeType: string): Promise<string> {
         const body = {
             content:       buffer.toString('base64'),
             mimeType:      mimeType,
@@ -53,12 +67,12 @@ export class YandexAdapter implements OcrService {
 
         let response: Response
         try {
-            response = await fetch(VISION_URL, {
+            response = await fetch(VISION_SYNC_URL, {
                 method:  'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type':  'application/json',
                     'Authorization': `Api-Key ${this.apiKey}`,
-                    'x-folder-id':  this.folderId,
+                    'x-folder-id':   this.folderId,
                 },
                 body:   JSON.stringify(body),
                 signal: abort.signal,
@@ -81,6 +95,55 @@ export class YandexAdapter implements OcrService {
         }
 
         return json.result?.textAnnotation?.fullText ?? ''
+    }
+
+    private async visionOcrAsync(buffer: Buffer, mimeType: string): Promise<string> {
+        const body = {
+            content:       buffer.toString('base64'),
+            mimeType:      mimeType,
+            languageCodes: ['ru'],
+            model:         'page',
+        }
+
+        const headers = {
+            'Content-Type':  'application/json',
+            'Authorization': `Api-Key ${this.apiKey}`,
+            'x-folder-id':   this.folderId,
+        }
+
+        // Start async operation
+        const startRes = await fetch(VISION_ASYNC_URL, {
+            method: 'POST', headers, body: JSON.stringify(body),
+        }).catch(err => { throw new OcrProviderError(`Yandex Vision async start error: ${err instanceof Error ? err.message : String(err)}`) })
+
+        if (!startRes.ok) {
+            const text = await startRes.text().catch(() => '')
+            throw new OcrProviderError(`Yandex Vision async error ${startRes.status}: ${text}`, startRes.status)
+        }
+
+        const { id: operationId } = await startRes.json() as { id?: string }
+        if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
+
+        // Poll until done (max 30 attempts × 2s = 60s)
+        const deadline = Date.now() + this.timeoutMs
+        for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise(r => setTimeout(r, 2000))
+            if (Date.now() > deadline) throw new OcrTimeoutError('Yandex Vision async timeout')
+
+            const pollRes = await fetch(`${OPERATION_URL}/${operationId}`, { headers }).catch(() => null)
+            if (!pollRes?.ok) continue
+
+            const op = await pollRes.json() as {
+                done?: boolean
+                response?: { textAnnotation?: { fullText?: string } }
+                error?: { message?: string }
+            }
+
+            if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
+            if (op.done) return op.response?.textAnnotation?.fullText ?? ''
+        }
+
+        throw new OcrTimeoutError('Yandex Vision async: max poll attempts exceeded')
     }
 
     // Step 2 — YandexGPT: extracted text → LabResult JSON
