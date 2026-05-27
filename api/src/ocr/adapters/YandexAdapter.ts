@@ -105,8 +105,10 @@ export class YandexAdapter implements OcrService {
         const annotation = json.result?.textAnnotation
         logger.info({
             hasFullText: !!annotation?.fullText,
+            fullTextLen: annotation?.fullText?.length ?? 0,
             blockCount:  annotation?.blocks?.length ?? 0,
             pageCount:   annotation?.pages?.length ?? 0,
+            rawPreview:  JSON.stringify(json).slice(0, 500),
         }, 'Vision OCR sync response')
 
         if (annotation?.fullText?.trim()) return annotation.fullText
@@ -174,6 +176,7 @@ export class YandexAdapter implements OcrService {
 
             if (op.error?.message) throw new OcrProviderError(`Yandex Vision async failed: ${op.error.message}`)
             if (op.done) {
+                logger.info({ rawPreview: JSON.stringify(op).slice(0, 500) }, 'Vision OCR async done')
                 const annotation = op.response?.textAnnotation
                 if (annotation?.fullText?.trim()) return annotation.fullText
                 return (annotation?.blocks ?? [])
