@@ -142,31 +142,34 @@ export class YandexAdapter implements OcrService {
         const { id: operationId } = await startRes.json() as { id?: string }
         if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
 
-        // getRecognition is a streaming endpoint — call immediately, it blocks until done
-        const abort = new AbortController()
-        const timer = setTimeout(() => abort.abort(), this.timeoutMs)
+        // Poll getRecognition — returns 404 while processing, then NDJSON when ready
+        const pollInterval = 3000
+        const deadline = Date.now() + this.timeoutMs
+        let rawBody: string | null = null
 
-        let resultRes: Response
-        try {
-            resultRes = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, {
-                headers,
-                signal: abort.signal,
-            })
-        } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError')
-                throw new OcrTimeoutError(`Yandex Vision async timeout after ${this.timeoutMs}ms`)
-            throw new OcrProviderError(`Yandex Vision get result error: ${err instanceof Error ? err.message : String(err)}`)
-        } finally {
-            clearTimeout(timer)
+        while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval))
+
+            let res: Response
+            try {
+                res = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers })
+            } catch (err) {
+                throw new OcrProviderError(`Yandex Vision get result error: ${err instanceof Error ? err.message : String(err)}`)
+            }
+
+            if (res.status === 404) continue
+
+            if (!res.ok) {
+                const text = await res.text().catch(() => '')
+                throw new OcrProviderError(`Yandex Vision get result error ${res.status}: ${text}`, res.status)
+            }
+
+            rawBody = await res.text()
+            break
         }
 
-        if (!resultRes.ok) {
-            const text = await resultRes.text().catch(() => '')
-            throw new OcrProviderError(`Yandex Vision get result error ${resultRes.status}: ${text}`, resultRes.status)
-        }
-
-        // Response is NDJSON: one JSON object per page
-        const rawBody = await resultRes.text()
+        if (rawBody === null)
+            throw new OcrTimeoutError(`Yandex Vision async timeout after ${this.timeoutMs}ms`)
         logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
 
         type PageResult = {
