@@ -92,14 +92,15 @@ export class YandexAdapter implements OcrService {
 
         type Block = { lines?: Array<{ text?: string }> }
         const json = await response.json() as {
-            textAnnotation?: {
-                fullText?: string
-                blocks?: Block[]
+            result?: {
+                textAnnotation?: {
+                    fullText?: string
+                    blocks?: Block[]
+                }
             }
-            page?: string
         }
 
-        const annotation = json.textAnnotation
+        const annotation = json.result?.textAnnotation
         logger.info({
             hasFullText: !!annotation?.fullText,
             fullTextLen: annotation?.fullText?.length ?? 0,
@@ -173,9 +174,11 @@ export class YandexAdapter implements OcrService {
         logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
 
         type PageResult = {
-            textAnnotation?: {
-                fullText?: string
-                blocks?: Array<{ lines?: Array<{ text?: string }> }>
+            result?: {
+                textAnnotation?: {
+                    fullText?: string
+                    blocks?: Array<{ lines?: Array<{ text?: string }> }>
+                }
             }
         }
 
@@ -183,7 +186,7 @@ export class YandexAdapter implements OcrService {
         for (const line of rawBody.split('\n').filter(l => l.trim())) {
             try {
                 const page = JSON.parse(line) as PageResult
-                const annotation = page.textAnnotation
+                const annotation = page.result?.textAnnotation
                 if (annotation?.fullText?.trim()) {
                     pageTexts.push(annotation.fullText)
                 } else {
