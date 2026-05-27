@@ -336,11 +336,11 @@ function buildMarkersHtml(markers, analysisId) {
       const edited    = m.isEdited ? ' title="отредактировано" style="opacity:.7"' : ''
 
       rows += '<tr>' +
-        '<td class="td-name td-editable" data-raw="' + escHtml(m.name) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'name\')"' + edited + '>' + escHtml(m.name) + '</td>' +
-        '<td class="td-val td-editable ' + cls + '" data-raw="' + escHtml(String(rawVal)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'value\')">' + (m.value != null ? m.value : '—') + arrow + '</td>' +
-        '<td class="td-unit td-editable" data-raw="' + escHtml(rawUnit) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'unit\')">' + escHtml(m.unit || '—') + '</td>' +
-        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMin)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'referenceMin\')">' + (m.referenceMin != null ? m.referenceMin : '—') + '</td>' +
-        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMax)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\'referenceMax\')">' + (m.referenceMax != null ? m.referenceMax : '—') + '</td>' +
+        '<td class="td-name td-editable" data-raw="' + escHtml(m.name) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\\'name\\')"' + edited + '>' + escHtml(m.name) + '</td>' +
+        '<td class="td-val td-editable ' + cls + '" data-raw="' + escHtml(String(rawVal)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\\'value\\')">' + (m.value != null ? m.value : '—') + arrow + '</td>' +
+        '<td class="td-unit td-editable" data-raw="' + escHtml(rawUnit) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\\'unit\\')">' + escHtml(m.unit || '—') + '</td>' +
+        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMin)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\\'referenceMin\\')">' + (m.referenceMin != null ? m.referenceMin : '—') + '</td>' +
+        '<td class="td-ref td-editable" data-raw="' + escHtml(String(rawRefMax)) + '" onclick="editCell(this,' + analysisId + ',' + m.id + ',\\'referenceMax\\')">' + (m.referenceMax != null ? m.referenceMax : '—') + '</td>' +
         '</tr>'
     })
   })
