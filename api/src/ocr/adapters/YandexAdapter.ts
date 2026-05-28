@@ -144,7 +144,7 @@ export class YandexAdapter implements OcrService {
         if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
 
         // Poll getRecognition — returns 404 while processing, then NDJSON when ready
-        const pollInterval = 1000
+        const pollInterval = 3000
         const deadline = Date.now() + this.timeoutMs
         let rawBody: string | null = null
 
