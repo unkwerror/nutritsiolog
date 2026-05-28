@@ -133,7 +133,7 @@ const worker = new Worker<AnalysisJobData>(
     },
     {
         connection: { host: config.REDIS_HOST, port: config.REDIS_PORT },
-        concurrency: 1,
+        concurrency: 3,
         limiter: { max: 10, duration: 60_000 },
     }
 )
