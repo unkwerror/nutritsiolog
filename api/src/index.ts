@@ -11,6 +11,8 @@ import jwtPlugin from './plugins/jwt.js'
 import swaggerPlugin from './plugins/swagger.js'
 import authRoutes from './modules/auth/routes.js'
 import analysisRoutes from './modules/analysis/routes.js'
+import questionnaireRoutes from './modules/questionnaire/routes.js'
+import profileRoutes from './modules/profile/routes.js'
 import healthRoutes from './modules/health/routes.js'
 import devtoolsRoutes from './modules/devtools/upload.js'
 import demoRoutes from './modules/demo/routes.js'
@@ -53,6 +55,8 @@ app.register(errorHandler)
 app.register(healthRoutes)
 app.register(authRoutes, { prefix: '/api/v1' })
 app.register(analysisRoutes, { prefix: '/api/v1' })
+app.register(questionnaireRoutes, { prefix: '/api/v1' })
+app.register(profileRoutes, { prefix: '/api/v1' })
 if (config.NODE_ENV !== 'production') app.register(devtoolsRoutes)
 if (config.DEMO_ACCESS_KEY) app.register(demoRoutes)
 

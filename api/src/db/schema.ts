@@ -11,6 +11,7 @@ import {
     date,
     index,
     uniqueIndex,
+    jsonb,
 } from 'drizzle-orm/pg-core'
 
 export const genderEnum = pgEnum('gender', ['male', 'female'])
@@ -147,6 +148,23 @@ export const markers = pgTable(
     ]
 )
 
+export const questionnaireResponses = pgTable(
+    'questionnaire_responses',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id),
+        answers: jsonb('answers').notNull(),
+        tags: jsonb('tags')
+            .notNull()
+            .$default(() => []),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    },
+    (table) => [index('questionnaire_user_id_idx').on(table.userId)]
+)
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
@@ -155,3 +173,6 @@ export type NewAnalysis = typeof analyses.$inferInsert
 
 export type Marker = typeof markers.$inferSelect
 export type NewMarker = typeof markers.$inferInsert
+
+export type QuestionnaireResponse = typeof questionnaireResponses.$inferSelect
+export type NewQuestionnaireResponse = typeof questionnaireResponses.$inferInsert

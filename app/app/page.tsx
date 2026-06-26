@@ -10,7 +10,7 @@ import { Navbar } from '@/components/Navbar'
 const EASE = [0.25, 0.46, 0.45, 0.94] as const
 
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 50 },
+  hidden: { opacity: 0, y: 40 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.85, ease: EASE } },
 }
 
@@ -39,108 +39,175 @@ const STEPS = [
   },
 ]
 
-// ─── Hero — immersive black frame ────────────────────────────────────────────
+// ─── Decorative botanical SVG ────────────────────────────────────────────────
+
+function BotanicalDecoration() {
+  return (
+    <svg
+      className="absolute right-0 top-0 h-full pointer-events-none select-none"
+      style={{ width: 'auto', maxWidth: '52vw' }}
+      viewBox="0 0 260 800"
+      fill="none"
+      preserveAspectRatio="xMaxYMid meet"
+      aria-hidden
+    >
+      {/* Central stem */}
+      <path
+        d="M 130 820 C 128 680 142 560 128 420 C 112 280 132 160 130 -20"
+        stroke="rgba(255,255,255,0.05)"
+        strokeWidth="1.2"
+      />
+      {/* Right leaf 1 */}
+      <path d="M 130 420 C 165 400 200 382 232 354" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+      <path
+        d="M 232 354 C 222 330 184 326 162 346 C 150 357 148 372 157 382 C 167 394 198 392 220 376 C 230 366 235 356 232 354 Z"
+        stroke="rgba(255,255,255,0.04)"
+        fill="rgba(255,255,255,0.015)"
+        strokeWidth="0.8"
+      />
+      {/* Left leaf 1 */}
+      <path d="M 128 505 C 96 486 62 466 35 438" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      <path
+        d="M 35 438 C 48 414 87 414 110 434 C 120 444 120 460 112 470 C 102 481 74 478 52 464 C 36 452 30 442 35 438 Z"
+        stroke="rgba(255,255,255,0.03)"
+        fill="rgba(255,255,255,0.01)"
+        strokeWidth="0.8"
+      />
+      {/* Right leaf 2 (upper) */}
+      <path d="M 130 312 C 158 292 188 274 218 252" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      <path
+        d="M 218 252 C 210 230 173 227 152 246 C 141 255 140 270 148 280 C 158 292 188 290 206 276 C 216 267 220 256 218 252 Z"
+        stroke="rgba(255,255,255,0.03)"
+        fill="rgba(255,255,255,0.01)"
+        strokeWidth="0.8"
+      />
+      {/* Left leaf 2 (upper) */}
+      <path d="M 128 215 C 98 197 70 182 46 164" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      <path
+        d="M 46 164 C 57 142 92 142 112 162 C 120 172 120 187 112 196 C 102 206 76 204 58 191 C 44 181 40 168 46 164 Z"
+        stroke="rgba(255,255,255,0.03)"
+        fill="rgba(255,255,255,0.01)"
+        strokeWidth="0.8"
+      />
+      {/* Tendrils */}
+      <path d="M 232 354 C 238 344 245 338 252 333" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
+      <path d="M 218 252 C 226 244 232 238 240 232" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
+      <path d="M 130 610 C 158 592 184 578 208 562" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
+      <path d="M 128 680 C 100 664 78 652 56 638" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
+    </svg>
+  )
+}
+
+// ─── Hero — forest-green immersive ──────────────────────────────────────────
 
 function HeroSection() {
   const ref = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] })
-  const sculptureY = useTransform(scrollYProgress, [0, 1], ['0%', '18%'])
   const textY = useTransform(scrollYProgress, [0, 1], ['0%', '8%'])
 
   return (
-    <section ref={ref} className="relative min-h-screen bg-[#000000] overflow-hidden">
-      {/* Navbar */}
+    <section
+      ref={ref}
+      className="relative min-h-screen overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, #2d3d28 0%, #35462f 38%, #4a6040 75%, #3d5435 100%)' }}
+    >
       <Navbar />
 
-      {/* Sculpture — parallax right, floating */}
-      <motion.div
-        className="absolute right-0 top-0 w-full h-full lg:w-[56%] pointer-events-none select-none"
-        style={{ y: sculptureY }}
-        aria-hidden
-      >
-        <div className="animate-float-slow w-full h-full">
-          <img
-            src="/assets/hero-sculpture.png"
-            alt=""
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-full h-full object-contain object-right opacity-85"
-          />
-        </div>
-      </motion.div>
-
-      {/* Cinematic vignette — keep left text legible */}
+      {/* Radial gold glow — behind headline */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute pointer-events-none select-none"
         style={{
+          left: '50%',
+          top: '42%',
+          transform: 'translate(-50%, -50%)',
+          width: '70vw',
+          height: '70vw',
+          maxWidth: 620,
+          maxHeight: 620,
           background:
-            'radial-gradient(ellipse 75% 100% at 18% 55%, transparent 28%, rgba(0,0,0,0.7) 100%)',
+            'radial-gradient(circle, rgba(255,230,146,0.07) 0%, rgba(255,230,146,0.03) 45%, transparent 70%)',
+          filter: 'blur(48px)',
         }}
         aria-hidden
       />
 
-      {/* Hero text — bottom-anchored, left */}
+      {/* Botanical decoration — right side */}
+      <BotanicalDecoration />
+
+      {/* Hero text — vertically centered left */}
       <motion.div
-        className="relative z-10 flex flex-col justify-end min-h-screen pb-16 sm:pb-20 px-6 sm:px-10 lg:px-16"
+        className="relative z-10 flex flex-col justify-center min-h-screen pb-8 px-6 sm:px-10 lg:px-16"
         style={{ y: textY }}
       >
         <motion.div
           variants={heroStagger}
           initial="hidden"
           animate="visible"
-          className="max-w-[62%] sm:max-w-[54%] lg:max-w-[50%]"
+          className="max-w-xl"
         >
+          {/* Eyebrow */}
           <motion.p
             variants={fadeUp}
-            className="text-white/40 text-[11px] sm:text-xs tracking-[0.3em] uppercase mb-6 font-sans"
+            className="text-white/40 text-[11px] tracking-[0.32em] uppercase mb-7 font-sans"
           >
-            Нутрициологический профиль
+            Персональный нутрициологический профиль
           </motion.p>
 
+          {/* Headline */}
           <motion.h1
             variants={fadeUp}
-            className="font-display font-light text-white leading-[0.88]"
+            className="font-display font-light text-white leading-[0.88] mb-8"
             style={{ fontSize: 'clamp(4rem, 11vw, 11rem)' }}
           >
-            Нутри&shy;<br />циолог
+            Нутри&#x2011;<br />
+            <span className="text-gold">циолог</span>
           </motion.h1>
 
+          {/* Body copy */}
           <motion.p
             variants={fadeUp}
-            className="text-white/50 text-base sm:text-lg leading-relaxed mt-6 mb-8 max-w-sm"
+            className="text-white/55 text-base sm:text-lg leading-relaxed mb-10 max-w-sm"
           >
-            Персональный профиль здоровья на основе ваших анализов и анкеты. Конкретные рекомендации от нутрициолога.
+            На основе анализов и анкеты — конкретные шаги к улучшению здоровья.
           </motion.p>
 
+          {/* CTAs */}
           <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3">
-            <Link href="/auth" className="btn-primary" style={{ fontSize: '0.95rem' }}>
-              Пройти анкетирование
+            <Link href="/auth" className="btn-gold" style={{ fontSize: '0.9375rem' }}>
+              Начать
             </Link>
-            <Link href="/#how" className="btn-outline-pill" style={{ fontSize: '0.95rem' }}>
+            <Link href="/#how" className="btn-outline-gold" style={{ fontSize: '0.9375rem' }}>
               Как это работает
             </Link>
           </motion.div>
         </motion.div>
       </motion.div>
 
-      {/* Scroll cue */}
+      {/* Scroll indicator — bottom right */}
       <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.0, duration: 0.85, ease: EASE }}
-        className="absolute bottom-8 right-8 lg:right-16 z-10 flex items-center gap-3"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.1, duration: 0.85, ease: EASE }}
+        className="absolute bottom-9 right-8 lg:right-16 z-10 flex flex-col items-center gap-2"
         aria-hidden
       >
-        <span className="text-white/20 text-[10px] tracking-[0.25em] uppercase font-sans">Scroll</span>
-        <div className="w-10 h-px bg-white/20" />
+        <div className="w-px h-12 bg-white/15" />
+        <span
+          className="text-white/25 text-[10px] tracking-[0.28em] uppercase font-sans"
+          style={{ writingMode: 'vertical-rl' }}
+        >
+          Scroll
+        </span>
       </motion.div>
     </section>
   )
 }
 
-// ─── How it works — white editorial section ──────────────────────────────────
+// ─── How it works — cream editorial section ──────────────────────────────────
 
 function HowSection() {
   return (
-    <section id="how" className="bg-[#ffffff] py-20 lg:py-[5rem] overflow-hidden">
+    <section id="how" className="py-20 lg:py-[5rem] overflow-hidden" style={{ background: '#f2f5ee' }}>
       <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16">
 
         {/* Label */}
@@ -149,25 +216,30 @@ function HowSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.7, ease: EASE }}
-          className="text-[#6d6d6d] text-[11px] tracking-[0.3em] uppercase mb-8 font-sans"
+          className="text-[11px] tracking-[0.3em] uppercase mb-8 font-sans"
+          style={{ color: 'rgba(53,70,47,0.5)' }}
         >
           Как это работает
         </motion.p>
 
-        {/* Big display heading */}
+        {/* Display heading */}
         <motion.h2
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.85, ease: EASE }}
-          className="font-display font-light text-[#181818] mb-16 lg:mb-24"
-          style={{ fontSize: 'clamp(2.4rem, 6vw, 5.5rem)', lineHeight: 1.05 }}
+          className="font-display font-light mb-16 lg:mb-24"
+          style={{
+            color: '#35462f',
+            fontSize: 'clamp(2.4rem, 6vw, 5.5rem)',
+            lineHeight: 1.05,
+          }}
         >
           Три шага<br />к пониманию<br />своего здоровья
         </motion.h2>
 
-        {/* Steps — horizontal list rows divided by hairlines */}
-        <div className="border-t border-[#181818]/8">
+        {/* Steps — rows divided by hairlines */}
+        <div style={{ borderTop: '1px solid rgba(53,70,47,0.1)' }}>
           {STEPS.map((step, i) => (
             <motion.div
               key={step.num}
@@ -175,12 +247,13 @@ function HowSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-80px' }}
               transition={{ duration: 0.8, delay: i * 0.12, ease: EASE }}
-              className="grid grid-cols-1 sm:grid-cols-[auto_1fr] lg:grid-cols-[auto_minmax(0,16rem)_1fr] gap-x-8 gap-y-3 items-baseline py-10 lg:py-12 border-b border-[#181818]/8"
+              className="grid grid-cols-1 sm:grid-cols-[auto_1fr] lg:grid-cols-[auto_minmax(0,16rem)_1fr] gap-x-8 gap-y-3 items-baseline py-10 lg:py-12"
+              style={{ borderBottom: '1px solid rgba(53,70,47,0.1)' }}
             >
               {/* Ghost number */}
               <span
-                className="font-display font-light text-[#181818] leading-none select-none pointer-events-none"
-                style={{ fontSize: 'clamp(3.5rem, 7vw, 6rem)', opacity: 0.08 }}
+                className="font-display font-light leading-none select-none pointer-events-none"
+                style={{ fontSize: 'clamp(3.5rem, 7vw, 6rem)', color: 'rgba(53,70,47,0.06)' }}
                 aria-hidden
               >
                 {step.num}
@@ -188,14 +261,17 @@ function HowSection() {
 
               {/* Title */}
               <h3
-                className="font-display font-light text-[#181818] leading-tight"
-                style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.6rem)' }}
+                className="font-display font-light leading-tight"
+                style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.6rem)', color: '#35462f' }}
               >
                 {step.title}
               </h3>
 
               {/* Description */}
-              <p className="text-[#6d6d6d] text-base sm:text-[1.0625rem] leading-relaxed max-w-xl">
+              <p
+                className="text-base sm:text-[1.0625rem] leading-relaxed max-w-xl font-sans"
+                style={{ color: 'rgba(53,70,47,0.65)' }}
+              >
                 {step.desc}
               </p>
             </motion.div>
@@ -210,10 +286,10 @@ function HowSection() {
           transition={{ duration: 0.8, ease: EASE }}
           className="mt-16 lg:mt-20 flex flex-col sm:flex-row items-start sm:items-center gap-6"
         >
-          <Link href="/auth" className="btn-primary-dark" style={{ fontSize: '0.95rem' }}>
+          <Link href="/auth" className="btn-gold" style={{ fontSize: '0.9375rem' }}>
             Начать анкетирование
           </Link>
-          <p className="text-[#6d6d6d] text-sm max-w-xs leading-relaxed">
+          <p className="font-sans text-sm max-w-xs leading-relaxed" style={{ color: 'rgba(53,70,47,0.55)' }}>
             Займёт 5–7 минут. Аккаунт создаётся автоматически по email.
           </p>
         </motion.div>
@@ -222,27 +298,35 @@ function HowSection() {
   )
 }
 
-// ─── CTA — immersive black close ─────────────────────────────────────────────
+// ─── CTA — forest-green close ─────────────────────────────────────────────────
 
 function CtaSection() {
   return (
-    <section id="start" className="relative bg-[#000000] overflow-hidden">
-      {/* Subtle sculpture atmosphere with green decorative glow */}
-      <div className="absolute inset-0 pointer-events-none select-none" aria-hidden>
-        <img
-          src="/assets/section3-sculpture.jpg"
-          alt=""
-          className="absolute right-0 bottom-0 w-2/3 h-full object-contain object-right-bottom opacity-[0.12]"
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to right, #000000 38%, transparent 100%)' }}
-        />
-        <div
-          className="absolute -right-20 top-1/4 w-[40rem] h-[40rem] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(160,224,171,0.06) 0%, transparent 65%)' }}
-        />
-      </div>
+    <section
+      id="start"
+      className="relative overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, #2a3825 0%, #35462f 50%, #3a5030 100%)' }}
+    >
+      {/* Gold glow — right accent */}
+      <div
+        className="absolute pointer-events-none select-none"
+        style={{
+          right: '-8%',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: '55vw',
+          height: '55vw',
+          maxWidth: 560,
+          maxHeight: 560,
+          background:
+            'radial-gradient(circle, rgba(255,230,146,0.05) 0%, rgba(255,230,146,0.02) 50%, transparent 70%)',
+          filter: 'blur(36px)',
+        }}
+        aria-hidden
+      />
+
+      {/* Hairline top border */}
+      <div className="absolute top-0 inset-x-0 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 sm:px-10 lg:px-16 py-20 lg:py-[5rem]">
         <motion.div
@@ -277,7 +361,7 @@ function CtaSection() {
           </motion.p>
 
           <motion.div variants={fadeUp} className="mt-2">
-            <Link href="/auth" className="btn-primary" style={{ fontSize: '0.95rem' }}>
+            <Link href="/auth" className="btn-gold" style={{ fontSize: '0.9375rem' }}>
               Попробовать бесплатно
             </Link>
           </motion.div>
