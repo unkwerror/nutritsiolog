@@ -61,7 +61,6 @@ export default function RecommendationsPage() {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  // Auth guard
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
@@ -77,17 +76,21 @@ export default function RecommendationsPage() {
   const hasAnalyses = analyses.length > 0
 
   return (
-    <main className="min-h-screen bg-white text-[#181818]">
-      <Navbar transparent={false} />
+    <main
+      className="min-h-screen"
+      style={{ background: 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)' }}
+    >
+      <Navbar transparent={false} variant="dark" />
 
       <div className="mx-auto max-w-4xl px-6 sm:px-10 lg:px-16 pt-32 pb-28">
         <motion.div variants={container} initial="initial" animate="animate">
+
           <motion.div variants={item} className="mb-12">
-            <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-[#6d6d6d] mb-5">
+            <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-5">
               Персональный профиль
             </p>
             <h1
-              className="font-display font-light leading-[1.02] text-[#181818]"
+              className="font-display font-light leading-[1.02] text-white"
               style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}
             >
               Рекомендации
@@ -95,16 +98,16 @@ export default function RecommendationsPage() {
           </motion.div>
 
           {!loaded ? (
-            <motion.p variants={item} className="font-sans text-sm text-[#9a9a9a]">
+            <motion.p variants={item} className="font-sans text-sm text-white/35">
               Загрузка…
             </motion.p>
           ) : !hasAnalyses ? (
-            /* Empty state — immersive black CTA block */
+            /* Empty state */
             <motion.div
               variants={item}
-              className="rounded-[18px] bg-black px-8 py-16 sm:px-14 sm:py-20 text-center"
+              className="glass-modal rounded-[20px] px-8 py-16 sm:px-14 sm:py-20 text-center"
             >
-              <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/45 mb-6">
+              <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/35 mb-6">
                 Пока пусто
               </p>
               <h2
@@ -113,40 +116,58 @@ export default function RecommendationsPage() {
               >
                 Загрузите анализы, чтобы получить персональные рекомендации
               </h2>
-              <Link href="/analyses/upload" className="btn-primary text-sm">
+              <Link href="/analyses/upload" className="btn-gold text-sm">
                 Загрузить анализы
               </Link>
             </motion.div>
           ) : (
             <>
-              <motion.p variants={item} className="font-sans text-[15px] text-[#6d6d6d] mb-12 max-w-xl">
+              <motion.p variants={item} className="font-sans text-[15px] text-white/55 mb-12 max-w-xl">
                 На основе ваших анализов мы подготовили предварительный набор рекомендаций.
                 Финальный профиль формируется нутрициологом.
               </motion.p>
 
-              <div className="grid gap-px sm:grid-cols-2">
-                {RECOMMENDATIONS.map((rec) => (
+              {/* Recommendation cards */}
+              <div className="border-t border-white/10">
+                {RECOMMENDATIONS.map((rec, i) => (
                   <motion.article
                     key={rec.category}
                     variants={item}
-                    className="border-t border-[#181818]/[0.08] pt-6 pb-8 pr-6"
+                    className="group border-b border-white/10 py-8 sm:py-10"
+                    style={{ transitionDelay: `${i * 0.05}s` }}
                   >
-                    <p className="font-sans text-[11px] tracking-[0.2em] uppercase text-[#6d6d6d] mb-3">
-                      {rec.category}
-                    </p>
-                    <p className="font-sans text-[16px] leading-relaxed text-[#181818]">
-                      {rec.text}
-                    </p>
+                    <div className="flex items-start gap-6 sm:gap-10">
+                      <span
+                        className="font-display font-light leading-none select-none shrink-0 mt-1"
+                        style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', color: 'rgba(255,255,255,0.06)' }}
+                        aria-hidden
+                      >
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-sans text-[11px] tracking-[0.22em] uppercase mb-3"
+                          style={{ color: 'rgba(255,230,146,0.65)' }}>
+                          {rec.category}
+                        </p>
+                        <p className="font-sans text-[16px] leading-relaxed text-white/85">
+                          {rec.text}
+                        </p>
+                      </div>
+                    </div>
                   </motion.article>
                 ))}
               </div>
 
-              <motion.p variants={item} className="font-sans text-[12px] text-[#6d6d6d] mt-16 max-w-2xl">
-                Рекомендации носят информационный характер. Перед изменением режима питания и приёма
-                добавок проконсультируйтесь с врачом.
+              <motion.p
+                variants={item}
+                className="font-sans text-[12px] text-white/30 mt-14 max-w-2xl"
+              >
+                Рекомендации носят информационный характер. Перед изменением режима питания
+                и приёма добавок проконсультируйтесь с врачом.
               </motion.p>
             </>
           )}
+
         </motion.div>
       </div>
     </main>

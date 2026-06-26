@@ -41,26 +41,14 @@ type Form = {
 }
 
 const EMPTY_FORM: Form = {
-  age: '',
-  gender: '',
-  height: '',
-  weight: '',
-  activity: '',
-  sleep: '',
-  stress: '',
-  redMeat: '',
-  alcohol: '',
-  supplements: [],
-  goal: '',
+  age: '', gender: '', height: '', weight: '',
+  activity: '', sleep: '', stress: '',
+  redMeat: '', alcohol: '', supplements: [], goal: '',
 }
 
 const STEP_TITLES = ['О вас', 'Образ жизни', 'Питание']
 
-const ACTIVITY_OPTS = [
-  'Низкий — сидячая работа',
-  'Умеренный — 1-2 раза в неделю',
-  'Высокий — 3+ раз в неделю',
-]
+const ACTIVITY_OPTS = ['Низкий — сидячая работа', 'Умеренный — 1-2 раза в неделю', 'Высокий — 3+ раз в неделю']
 const SLEEP_OPTS = ['Хороший — 7-9 ч', 'Удовлетворительный — 5-7 ч', 'Плохой — менее 5 ч']
 const STRESS_OPTS = ['Низкий', 'Умеренный', 'Высокий']
 const RED_MEAT_OPTS = ['Редко', '1-2 раза в неделю', 'Каждый день']
@@ -68,21 +56,11 @@ const ALCOHOL_OPTS = ['Нет', 'Редко', 'Умеренно', 'Часто']
 const SUPPLEMENT_OPTS = ['Витамин D', 'Омега-3', 'Магний', 'Не принимаю']
 
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="block font-sans text-[14px] text-[#181818] mb-3">{children}</span>
-  )
+  return <span className="block font-sans text-[14px] text-white/70 mb-3">{children}</span>
 }
 
-function RadioGroup({
-  name,
-  options,
-  value,
-  onChange,
-}: {
-  name: string
-  options: string[]
-  value: string
-  onChange: (v: string) => void
+function RadioGroup({ name, options, value, onChange }: {
+  name: string; options: string[]; value: string; onChange: (v: string) => void
 }) {
   return (
     <div className="grid gap-2.5">
@@ -93,21 +71,21 @@ function RadioGroup({
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className="flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition-colors"
+            className="flex items-center gap-3 rounded-[10px] px-4 py-3 text-left transition-all"
             style={{
-              borderColor: active ? 'rgba(24,24,24,0.55)' : 'rgba(24,24,24,0.15)',
-              background: active ? 'rgba(24,24,24,0.03)' : '#ffffff',
+              border: active ? '1.5px solid rgba(255,230,146,0.6)' : '1.5px solid rgba(255,255,255,0.12)',
+              background: active ? 'rgba(255,230,146,0.06)' : 'rgba(255,255,255,0.03)',
             }}
             aria-pressed={active}
             aria-label={`${name}: ${opt}`}
           >
             <span
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
-              style={{ borderColor: active ? '#4a7c59' : 'rgba(24,24,24,0.3)' }}
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
+              style={{ borderColor: active ? '#ffe692' : 'rgba(255,255,255,0.3)' }}
             >
-              {active && <span className="h-2 w-2 rounded-full" style={{ background: '#4a7c59' }} />}
+              {active && <span className="h-2 w-2 rounded-full bg-[#ffe692]" />}
             </span>
-            <span className="font-sans text-[15px] text-[#181818]">{opt}</span>
+            <span className="font-sans text-[15px] text-white">{opt}</span>
           </button>
         )
       })}
@@ -115,14 +93,8 @@ function RadioGroup({
   )
 }
 
-function CheckboxGroup({
-  options,
-  values,
-  onToggle,
-}: {
-  options: string[]
-  values: string[]
-  onToggle: (v: string) => void
+function CheckboxGroup({ options, values, onToggle }: {
+  options: string[]; values: string[]; onToggle: (v: string) => void
 }) {
   return (
     <div className="grid gap-2.5">
@@ -133,33 +105,27 @@ function CheckboxGroup({
             key={opt}
             type="button"
             onClick={() => onToggle(opt)}
-            className="flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition-colors"
+            className="flex items-center gap-3 rounded-[10px] px-4 py-3 text-left transition-all"
             style={{
-              borderColor: active ? 'rgba(24,24,24,0.55)' : 'rgba(24,24,24,0.15)',
-              background: active ? 'rgba(24,24,24,0.03)' : '#ffffff',
+              border: active ? '1.5px solid rgba(255,230,146,0.6)' : '1.5px solid rgba(255,255,255,0.12)',
+              background: active ? 'rgba(255,230,146,0.06)' : 'rgba(255,255,255,0.03)',
             }}
             aria-pressed={active}
           >
             <span
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-all"
               style={{
-                borderColor: active ? '#4a7c59' : 'rgba(24,24,24,0.3)',
-                background: active ? '#4a7c59' : 'transparent',
+                borderColor: active ? '#ffe692' : 'rgba(255,255,255,0.3)',
+                background: active ? '#ffe692' : 'transparent',
               }}
             >
               {active && (
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
-                  <path
-                    d="M2.5 6.2 5 8.5l4.5-5"
-                    stroke="#ffffff"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <path d="M2.5 6.2 5 8.5l4.5-5" stroke="#35462f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </span>
-            <span className="font-sans text-[15px] text-[#181818]">{opt}</span>
+            <span className="font-sans text-[15px] text-white">{opt}</span>
           </button>
         )
       })}
@@ -170,12 +136,10 @@ function CheckboxGroup({
 export default function QuestionnairePage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
-
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<Form>(EMPTY_FORM)
   const [submitted, setSubmitted] = useState(false)
 
-  // Auth guard
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
@@ -186,7 +150,6 @@ export default function QuestionnairePage() {
 
   function toggleSupplement(opt: string) {
     setForm((prev) => {
-      // "Не принимаю" is exclusive
       if (opt === 'Не принимаю') return { ...prev, supplements: prev.supplements.includes(opt) ? [] : [opt] }
       const without = prev.supplements.filter((s) => s !== 'Не принимаю')
       const next = without.includes(opt) ? without.filter((s) => s !== opt) : [...without, opt]
@@ -195,12 +158,8 @@ export default function QuestionnairePage() {
   }
 
   function handleNext() {
-    if (step < STEP_TITLES.length - 1) {
-      setStep((s) => s + 1)
-    } else {
-      // Backend questionnaire module not built yet — UI-only confirmation.
-      setSubmitted(true)
-    }
+    if (step < STEP_TITLES.length - 1) setStep((s) => s + 1)
+    else setSubmitted(true)
   }
 
   function handleBack() {
@@ -209,8 +168,11 @@ export default function QuestionnairePage() {
 
   if (submitted) {
     return (
-      <main className="min-h-screen bg-white text-[#181818]">
-        <Navbar transparent={false} />
+      <main
+        className="min-h-screen"
+        style={{ background: 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)' }}
+      >
+        <Navbar transparent={false} variant="dark" />
         <div className="mx-auto max-w-4xl px-6 sm:px-10 lg:px-16 pt-32 pb-28">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
@@ -219,20 +181,17 @@ export default function QuestionnairePage() {
             className="flex min-h-[55vh] flex-col items-center justify-center text-center"
           >
             <motion.svg
-              width="72"
-              height="72"
-              viewBox="0 0 72 72"
-              fill="none"
+              width="72" height="72" viewBox="0 0 72 72" fill="none"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.6, ease, delay: 0.1 }}
               className="mb-8"
               aria-hidden
             >
-              <circle cx="36" cy="36" r="34.5" stroke="#4a7c59" strokeWidth="1.2" />
+              <circle cx="36" cy="36" r="34.5" stroke="rgba(255,230,146,0.6)" strokeWidth="1.2" />
               <motion.path
                 d="M23 37.5 32 46.5 50 27"
-                stroke="#4a7c59"
+                stroke="#ffe692"
                 strokeWidth="1.6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -242,15 +201,15 @@ export default function QuestionnairePage() {
               />
             </motion.svg>
             <h1
-              className="font-display font-light leading-[1.04] text-[#181818] mb-4"
+              className="font-display font-light leading-[1.04] text-white mb-4"
               style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}
             >
               Анкета сохранена
             </h1>
-            <p className="font-sans text-[15px] text-[#6d6d6d] max-w-md mb-10">
+            <p className="font-sans text-[15px] text-white/55 max-w-md mb-10">
               Спасибо. Мы учтём ваши ответы при формировании персональных рекомендаций.
             </p>
-            <Link href="/dashboard" className="btn-primary-dark text-sm">
+            <Link href="/dashboard" className="btn-gold text-sm">
               В личный кабинет
             </Link>
           </motion.div>
@@ -260,8 +219,11 @@ export default function QuestionnairePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#181818]">
-      <Navbar transparent={false} />
+    <main
+      className="min-h-screen"
+      style={{ background: 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)' }}
+    >
+      <Navbar transparent={false} variant="dark" />
 
       <div className="mx-auto max-w-4xl px-6 sm:px-10 lg:px-16 pt-32 pb-28">
         <motion.div
@@ -269,82 +231,61 @@ export default function QuestionnairePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease }}
         >
-          <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-[#6d6d6d] mb-5">
+          <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-5">
             Шаг {step + 1} из {STEP_TITLES.length} · {STEP_TITLES[step]}
           </p>
           <h1
-            className="font-display font-light leading-[1.04] text-[#181818] mb-8"
+            className="font-display font-light leading-[1.04] text-white mb-8"
             style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}
           >
             Анкета
           </h1>
 
-          {/* Step indicator */}
+          {/* Progress bar */}
           <div className="flex gap-2 mb-12 max-w-xs">
             {STEP_TITLES.map((t, i) => (
               <span
                 key={t}
-                className="h-[2px] flex-1 rounded-full transition-colors"
-                style={{ background: i <= step ? '#181818' : 'rgba(24,24,24,0.12)' }}
+                className="h-[2px] flex-1 rounded-full transition-colors duration-300"
+                style={{ background: i <= step ? 'rgba(255,230,146,0.7)' : 'rgba(255,255,255,0.12)' }}
               />
             ))}
           </div>
 
-          {/* Steps */}
           <div className="max-w-xl">
             <AnimatePresence mode="wait">
               {step === 0 && (
-                <motion.div
-                  key="step-0"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
+                <motion.div key="step-0" variants={stepVariants} initial="initial" animate="animate" exit="exit">
                   <motion.div variants={fieldStagger} initial="initial" animate="animate" className="space-y-8">
                     <motion.div variants={field}>
                       <Label>Возраст</Label>
                       <input
-                        type="number"
-                        min={25}
-                        max={90}
-                        value={form.age}
-                        onChange={(e) => set('age', e.target.value)}
+                        type="number" min={25} max={90}
+                        value={form.age} onChange={(e) => set('age', e.target.value)}
                         placeholder="Например, 52"
-                        className="input-clean w-full px-4 py-3 text-[15px]"
+                        className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]"
                       />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Пол</Label>
-                      <RadioGroup
-                        name="Пол"
-                        options={['Мужской', 'Женский']}
-                        value={form.gender}
-                        onChange={(v) => set('gender', v)}
-                      />
+                      <RadioGroup name="Пол" options={['Мужской', 'Женский']} value={form.gender} onChange={(v) => set('gender', v)} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Рост (см)</Label>
                       <input
-                        type="number"
-                        min={120}
-                        max={230}
-                        value={form.height}
-                        onChange={(e) => set('height', e.target.value)}
+                        type="number" min={120} max={230}
+                        value={form.height} onChange={(e) => set('height', e.target.value)}
                         placeholder="Например, 178"
-                        className="input-clean w-full px-4 py-3 text-[15px]"
+                        className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]"
                       />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Вес (кг)</Label>
                       <input
-                        type="number"
-                        min={35}
-                        max={250}
-                        value={form.weight}
-                        onChange={(e) => set('weight', e.target.value)}
+                        type="number" min={35} max={250}
+                        value={form.weight} onChange={(e) => set('weight', e.target.value)}
                         placeholder="Например, 74"
-                        className="input-clean w-full px-4 py-3 text-[15px]"
+                        className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]"
                       />
                     </motion.div>
                   </motion.div>
@@ -352,88 +293,46 @@ export default function QuestionnairePage() {
               )}
 
               {step === 1 && (
-                <motion.div
-                  key="step-1"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
+                <motion.div key="step-1" variants={stepVariants} initial="initial" animate="animate" exit="exit">
                   <motion.div variants={fieldStagger} initial="initial" animate="animate" className="space-y-8">
                     <motion.div variants={field}>
                       <Label>Уровень физической активности</Label>
-                      <RadioGroup
-                        name="Активность"
-                        options={ACTIVITY_OPTS}
-                        value={form.activity}
-                        onChange={(v) => set('activity', v)}
-                      />
+                      <RadioGroup name="Активность" options={ACTIVITY_OPTS} value={form.activity} onChange={(v) => set('activity', v)} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Качество сна</Label>
-                      <RadioGroup
-                        name="Сон"
-                        options={SLEEP_OPTS}
-                        value={form.sleep}
-                        onChange={(v) => set('sleep', v)}
-                      />
+                      <RadioGroup name="Сон" options={SLEEP_OPTS} value={form.sleep} onChange={(v) => set('sleep', v)} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Уровень стресса</Label>
-                      <RadioGroup
-                        name="Стресс"
-                        options={STRESS_OPTS}
-                        value={form.stress}
-                        onChange={(v) => set('stress', v)}
-                      />
+                      <RadioGroup name="Стресс" options={STRESS_OPTS} value={form.stress} onChange={(v) => set('stress', v)} />
                     </motion.div>
                   </motion.div>
                 </motion.div>
               )}
 
               {step === 2 && (
-                <motion.div
-                  key="step-2"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
+                <motion.div key="step-2" variants={stepVariants} initial="initial" animate="animate" exit="exit">
                   <motion.div variants={fieldStagger} initial="initial" animate="animate" className="space-y-8">
                     <motion.div variants={field}>
                       <Label>Как часто едите красное мясо</Label>
-                      <RadioGroup
-                        name="Красное мясо"
-                        options={RED_MEAT_OPTS}
-                        value={form.redMeat}
-                        onChange={(v) => set('redMeat', v)}
-                      />
+                      <RadioGroup name="Красное мясо" options={RED_MEAT_OPTS} value={form.redMeat} onChange={(v) => set('redMeat', v)} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Употребляете алкоголь</Label>
-                      <RadioGroup
-                        name="Алкоголь"
-                        options={ALCOHOL_OPTS}
-                        value={form.alcohol}
-                        onChange={(v) => set('alcohol', v)}
-                      />
+                      <RadioGroup name="Алкоголь" options={ALCOHOL_OPTS} value={form.alcohol} onChange={(v) => set('alcohol', v)} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Принимаете витамины / добавки</Label>
-                      <CheckboxGroup
-                        options={SUPPLEMENT_OPTS}
-                        values={form.supplements}
-                        onToggle={toggleSupplement}
-                      />
+                      <CheckboxGroup options={SUPPLEMENT_OPTS} values={form.supplements} onToggle={toggleSupplement} />
                     </motion.div>
                     <motion.div variants={field}>
                       <Label>Цель</Label>
                       <textarea
-                        value={form.goal}
-                        onChange={(e) => set('goal', e.target.value)}
+                        value={form.goal} onChange={(e) => set('goal', e.target.value)}
                         rows={4}
                         placeholder="Например, улучшить энергичность, нормализовать вес..."
-                        className="input-clean w-full px-4 py-3 text-[15px] resize-none"
+                        className="glass-input w-full px-4 py-3 text-[15px] resize-none rounded-[10px]"
                       />
                     </motion.div>
                   </motion.div>
@@ -444,15 +343,11 @@ export default function QuestionnairePage() {
             {/* Navigation */}
             <div className="flex items-center justify-between gap-4 mt-12">
               {step > 0 ? (
-                <button onClick={handleBack} className="btn-outline-dark text-sm px-7">
-                  Назад
-                </button>
+                <button onClick={handleBack} className="btn-outline-gold text-sm px-7">Назад</button>
               ) : (
-                <Link href="/dashboard" className="btn-outline-dark text-sm px-7">
-                  Отмена
-                </Link>
+                <Link href="/dashboard" className="btn-outline-gold text-sm px-7">Отмена</Link>
               )}
-              <button onClick={handleNext} className="btn-primary-dark text-sm px-8">
+              <button onClick={handleNext} className="btn-gold text-sm px-8">
                 {step < STEP_TITLES.length - 1 ? 'Далее' : 'Сохранить анкету'}
               </button>
             </div>

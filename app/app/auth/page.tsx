@@ -30,7 +30,6 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Redirect if already logged in
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('accessToken') : null
     if (token) router.replace('/dashboard')
@@ -100,15 +99,12 @@ export default function AuthPage() {
   return (
     <main
       className="min-h-screen flex items-center justify-center px-4 py-10"
-      style={{ background: '#f9faf9' }}
+      style={{ background: 'linear-gradient(160deg, #2a3824 0%, #35462f 50%, #3d5435 100%)' }}
     >
       <div className="w-full sm:max-w-[440px]">
         {/* Logo */}
         <div className="mb-6 text-center">
-          <Link
-            href="/"
-            className="font-sans text-[#181818] text-lg tracking-wide hover:text-[#6d6d6d] transition-colors"
-          >
+          <Link href="/" className="font-sans italic text-white/75 text-lg tracking-wide hover:text-white transition-colors">
             Нутрициолог
           </Link>
         </div>
@@ -120,20 +116,18 @@ export default function AuthPage() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="bg-white p-10 sm:p-12"
-            style={{
-              border: '1px solid rgba(24,24,24,0.1)',
-              borderRadius: 16,
-              boxShadow: '0 24px 64px rgba(0,0,0,0.08)',
-            }}
+            className="glass-modal p-10 sm:p-12"
+            style={{ borderRadius: 20 }}
           >
-            {/* Step indicator — 3 thin lines */}
+            {/* Step bar */}
             <div className="flex gap-2 mb-9">
               {STEP_ORDER.map((s, i) => (
                 <div
                   key={s}
                   className="h-0.5 flex-1 rounded-full transition-colors duration-300"
-                  style={{ background: currentIndex >= i ? 'rgba(24,24,24,0.8)' : 'rgba(24,24,24,0.12)' }}
+                  style={{
+                    background: currentIndex >= i ? 'rgba(255,230,146,0.8)' : 'rgba(255,255,255,0.14)',
+                  }}
                 />
               ))}
             </div>
@@ -141,26 +135,26 @@ export default function AuthPage() {
             {step === 'email' && (
               <form onSubmit={(e) => void handleRequestOtp(e)} className="flex flex-col gap-6">
                 <div>
-                  <h1 className="font-display font-light text-[#181818] text-4xl mb-2 leading-tight">Войти</h1>
-                  <p className="text-[#6d6d6d] text-sm">Введите email — пришлём одноразовый код</p>
+                  <h1 className="font-display font-light text-white text-4xl mb-2 leading-tight">Войти</h1>
+                  <p className="text-white/55 text-sm">Введите email — пришлём одноразовый код</p>
                 </div>
                 <Field label="Email">
                   <input
                     type="email" autoComplete="email" required
                     placeholder="you@example.com"
                     value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="input-clean w-full px-4 py-3.5 text-base"
+                    className="glass-input w-full px-4 py-3.5 text-base rounded-[10px]"
                   />
                 </Field>
                 {error && <ErrorMsg>{error}</ErrorMsg>}
                 <button
                   type="submit"
                   disabled={isLoading || !email.trim()}
-                  className="btn-primary-dark w-full text-base"
+                  className="btn-gold w-full text-base"
                 >
                   {isLoading ? 'Отправляем…' : 'Получить код'}
                 </button>
-                <p className="text-center text-[#9a9a9a] text-xs">
+                <p className="text-center text-white/40 text-xs">
                   Нет аккаунта? Он создастся автоматически
                 </p>
               </form>
@@ -169,11 +163,12 @@ export default function AuthPage() {
             {step === 'otp' && (
               <form onSubmit={(e) => void handleVerifyOtp(e)} className="flex flex-col gap-6">
                 <div>
-                  <h1 className="font-display font-light text-[#181818] text-4xl mb-2 leading-tight">
+                  <h1 className="font-display font-light text-white text-4xl mb-2 leading-tight">
                     {isNewUser ? 'Подтверждение' : 'Введите код'}
                   </h1>
-                  <p className="text-[#6d6d6d] text-sm">
-                    Мы отправили код на <span className="text-[#181818]">{email}</span>
+                  <p className="text-white/55 text-sm">
+                    Мы отправили код на{' '}
+                    <span className="text-white">{email}</span>
                   </p>
                 </div>
                 <Field label="Код из письма">
@@ -181,21 +176,21 @@ export default function AuthPage() {
                     type="text" inputMode="numeric" autoComplete="one-time-code"
                     placeholder="000000" maxLength={6} required
                     value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                    className="input-clean w-full px-4 py-3.5 text-2xl tracking-[0.3em] text-center text-[#181818]"
+                    className="glass-input w-full px-4 py-3.5 text-2xl tracking-[0.3em] text-center rounded-[10px]"
                   />
                 </Field>
                 {error && <ErrorMsg>{error}</ErrorMsg>}
                 <button
                   type="submit"
                   disabled={isLoading || code.length < 4}
-                  className="btn-primary-dark w-full text-base"
+                  className="btn-gold w-full text-base"
                 >
                   {isLoading ? 'Проверяем…' : isNewUser ? 'Продолжить' : 'Войти'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setStep('email'); setError(null) }}
-                  className="text-[#6d6d6d] text-sm hover:text-[#181818] transition-colors"
+                  className="text-white/45 text-sm hover:text-white/80 transition-colors"
                 >
                   ← Изменить email
                 </button>
@@ -205,53 +200,55 @@ export default function AuthPage() {
             {step === 'register' && (
               <form onSubmit={(e) => void handleRegister(e)} className="flex flex-col gap-5">
                 <div>
-                  <h1 className="font-display font-light text-[#181818] text-4xl mb-2 leading-tight">Регистрация</h1>
-                  <p className="text-[#9a9a9a] text-xs">{email}</p>
+                  <h1 className="font-display font-light text-white text-4xl mb-2 leading-tight">Регистрация</h1>
+                  <p className="text-white/40 text-xs">{email}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Имя *">
                     <input
                       type="text" autoComplete="given-name" required placeholder="Иван"
                       value={firstName} onChange={(e) => setFirstName(e.target.value)}
-                      className="input-clean w-full px-4 py-3 text-base text-[#181818]"
+                      className="glass-input w-full px-4 py-3 text-base rounded-[10px]"
                     />
                   </Field>
                   <Field label="Фамилия">
                     <input
                       type="text" autoComplete="family-name" placeholder="Иванов"
                       value={lastName} onChange={(e) => setLastName(e.target.value)}
-                      className="input-clean w-full px-4 py-3 text-base text-[#181818]"
+                      className="glass-input w-full px-4 py-3 text-base rounded-[10px]"
                     />
                   </Field>
                 </div>
                 <div className="flex flex-col gap-3 mt-1">
                   <ConsentBox checked={consentPd} onChange={setConsentPd}>
-                    Согласен(на) на обработку персональных данных <span className="text-red-600">*</span>
+                    Согласен(на) на обработку персональных данных{' '}
+                    <span style={{ color: '#ff9a9a' }}>*</span>
                   </ConsentBox>
                   <ConsentBox checked={consentMedical} onChange={setConsentMedical}>
-                    Согласен(на) на обработку медицинских данных для формирования профиля <span className="text-red-600">*</span>
+                    Согласен(на) на обработку медицинских данных{' '}
+                    <span style={{ color: '#ff9a9a' }}>*</span>
                   </ConsentBox>
                 </div>
                 {error && <ErrorMsg>{error}</ErrorMsg>}
                 <button
                   type="submit"
                   disabled={isLoading || !firstName.trim() || !consentPd || !consentMedical}
-                  className="btn-primary-dark w-full text-base"
+                  className="btn-gold w-full text-base"
                 >
                   {isLoading ? 'Создаём профиль…' : 'Создать профиль'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setStep('otp'); setError(null) }}
-                  className="text-[#6d6d6d] text-sm hover:text-[#181818] transition-colors"
+                  className="text-white/45 text-sm hover:text-white/80 transition-colors"
                 >
                   ← Назад
                 </button>
               </form>
             )}
 
-            <div className="mt-8 pt-6 border-t border-[#181818]/8 text-center">
-              <Link href="/" className="text-[#9a9a9a] text-xs hover:text-[#181818] transition-colors">
+            <div className="mt-8 pt-6 border-t border-white/8 text-center">
+              <Link href="/" className="text-white/35 text-xs hover:text-white/65 transition-colors">
                 ← На главную
               </Link>
             </div>
@@ -265,7 +262,7 @@ export default function AuthPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[#181818] text-sm font-medium">{label}</label>
+      <label className="text-white/70 text-sm font-medium">{label}</label>
       {children}
     </div>
   )
@@ -274,22 +271,29 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ErrorMsg({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="text-red-600/90 text-sm bg-red-50 px-3 py-2.5"
-      style={{ borderRadius: 10 }}
+      className="text-sm px-3 py-2.5 rounded-[10px]"
+      style={{ background: 'rgba(255,80,80,0.12)', color: '#ff9a9a', border: '1px solid rgba(255,80,80,0.18)' }}
     >
       {children}
     </p>
   )
 }
 
-function ConsentBox({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
+function ConsentBox({
+  checked, onChange, children,
+}: {
+  checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode
+}) {
   return (
     <label className="flex items-start gap-2.5 cursor-pointer group">
       <input
         type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 w-4 h-4 shrink-0 rounded accent-[#181818]"
+        className="mt-0.5 w-4 h-4 shrink-0 rounded"
+        style={{ accentColor: '#ffe692' }}
       />
-      <span className="text-[#6d6d6d] text-xs leading-relaxed group-hover:text-[#181818] transition-colors">{children}</span>
+      <span className="text-white/50 text-xs leading-relaxed group-hover:text-white/75 transition-colors">
+        {children}
+      </span>
     </label>
   )
 }

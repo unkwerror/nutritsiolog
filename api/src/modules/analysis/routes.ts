@@ -170,6 +170,14 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             reply.hijack()
             const raw = reply.raw
 
+            // @fastify/cors never runs after hijack — add CORS headers manually
+            const origin = request.headers.origin
+            if (origin) {
+                raw.setHeader('Access-Control-Allow-Origin', origin)
+                raw.setHeader('Access-Control-Allow-Credentials', 'true')
+                raw.setHeader('Vary', 'Origin')
+            }
+
             raw.setHeader('Content-Type', 'text/event-stream')
             raw.setHeader('Cache-Control', 'no-cache')
             raw.setHeader('Connection', 'keep-alive')

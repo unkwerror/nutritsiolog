@@ -13,9 +13,7 @@ const MAX_FILES = 5
 const MAX_SIZE_MB = 10
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
-
 type PendingFile = { file: File; id: string; error?: string }
-
 type UploadRow = {
   id: string
   fileName: string
@@ -23,7 +21,6 @@ type UploadRow = {
   status: AnalysisStatus | 'uploading' | 'error'
   message?: string
 }
-
 type UploadResponse = { analysisId: number; status: string }
 type SseEvent = { status: AnalysisStatus; analysisId: number }
 
@@ -43,15 +40,6 @@ const STATUS_LABEL: Record<UploadRow['status'], string> = {
   error: 'Ошибка',
 }
 
-const STATUS_DOT: Record<UploadRow['status'], string> = {
-  uploading: '#9a9a9a',
-  pending: '#9a9a9a',
-  processing: '#4a7c59',
-  done: '#4a7c59',
-  failed: '#b4342b',
-  error: '#b4342b',
-}
-
 function uid(): string {
   return Math.random().toString(36).slice(2)
 }
@@ -68,7 +56,6 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
 
-// SSE via fetch — EventSource cannot send the Authorization header.
 async function watchAnalysis(
   analysisId: number,
   token: string,
@@ -93,9 +80,7 @@ async function watchAnalysis(
         const evt = JSON.parse(line.slice(6)) as SseEvent
         onStatus(evt.status)
         if (evt.status === 'done' || evt.status === 'failed') return
-      } catch {
-        /* skip malformed line */
-      }
+      } catch { /* skip */ }
     }
   }
 }
@@ -110,7 +95,6 @@ export default function UploadPage() {
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Auth guard
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
@@ -145,37 +129,24 @@ export default function UploadPage() {
 
   const handleSubmit = useCallback(async () => {
     const token = getAccessToken()
-    if (!token) {
-      router.replace('/auth')
-      return
-    }
+    if (!token) { router.replace('/auth'); return }
     const valid = files.filter((f) => !f.error)
     if (valid.length === 0) return
-
     setSubmitting(true)
-
     const initialRows: UploadRow[] = valid.map((f) => ({
-      id: f.id,
-      fileName: f.file.name,
-      analysisId: null,
-      status: 'uploading',
+      id: f.id, fileName: f.file.name, analysisId: null, status: 'uploading',
     }))
     setRows(initialRows)
     setFiles([])
-
     await Promise.all(
       valid.map(async (f) => {
         try {
           const form = new FormData()
           form.append('file', f.file)
           const result = await apiRequest<UploadResponse>('/api/v1/analysis/upload', {
-            method: 'POST',
-            body: form,
+            method: 'POST', body: form,
           })
-          updateRow(f.id, {
-            analysisId: result.analysisId,
-            status: (result.status as AnalysisStatus) ?? 'pending',
-          })
+          updateRow(f.id, { analysisId: result.analysisId, status: (result.status as AnalysisStatus) ?? 'pending' })
           await watchAnalysis(result.analysisId, token, (s) => updateRow(f.id, { status: s }))
         } catch (err) {
           updateRow(f.id, {
@@ -185,51 +156,50 @@ export default function UploadPage() {
         }
       }),
     )
-
     setSubmitting(false)
   }, [files, router, updateRow])
 
   const validCount = files.filter((f) => !f.error).length
 
   return (
-    <main className="min-h-screen bg-white text-[#181818]">
-      <Navbar transparent={false} />
+    <main
+      className="min-h-screen"
+      style={{ background: 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)' }}
+    >
+      <Navbar transparent={false} variant="dark" />
 
       <div className="mx-auto max-w-xl px-6 sm:px-10 pt-32 pb-28">
         <motion.div variants={fade} initial="initial" animate="animate">
-          <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-[#6d6d6d] mb-5">
+          <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-5">
             Загрузка
           </p>
           <h1
-            className="font-display font-light leading-[1.04] text-[#181818] mb-3"
+            className="font-display font-light leading-[1.04] text-white mb-3"
             style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}
           >
             Анализы
           </h1>
-          <p className="font-sans text-[15px] text-[#6d6d6d] mb-10 max-w-md">
-            Загрузите фото или PDF результатов лабораторных исследований. Мы распознаем
-            показатели автоматически.
+          <p className="font-sans text-[15px] text-white/55 mb-10 max-w-md">
+            Загрузите фото или PDF результатов лабораторных исследований.
+            Мы распознаем показатели автоматически.
           </p>
 
           {/* Dropzone */}
           <div
-            className={`rounded-[14px] border-2 border-dashed px-6 py-12 text-center transition-colors cursor-pointer ${
-              dragging
-                ? 'border-[#4a7c59]/40 bg-[#4a7c59]/[0.04]'
-                : 'border-[#181818]/15 hover:border-[#4a7c59]/30'
+            className={`rounded-[16px] border-2 border-dashed px-6 py-12 text-center transition-all cursor-pointer ${
+              dragging ? 'dropzone-active' : ''
             }`}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragging(true)
+            style={{
+              borderColor: dragging ? '#ffe692' : 'rgba(255,255,255,0.2)',
+              background: dragging ? 'rgba(255,230,146,0.04)' : 'rgba(255,255,255,0.03)',
             }}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click()
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click() }}
           >
             <input
               ref={inputRef}
@@ -237,43 +207,41 @@ export default function UploadPage() {
               multiple
               accept="application/pdf,image/jpeg,image/png"
               className="hidden"
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files)
-                e.target.value = ''
-              }}
+              onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = '' }}
             />
-            <p className="font-sans text-[15px] text-[#181818]">Перетащите файлы сюда</p>
-            <p className="font-sans text-[13px] text-[#9a9a9a] mt-1.5">
+            <p className="font-sans text-[15px] text-white/80">Перетащите файлы сюда</p>
+            <p className="font-sans text-[13px] text-white/40 mt-1.5">
               или нажмите, чтобы выбрать · PDF, JPEG, PNG · до {MAX_SIZE_MB} МБ
             </p>
           </div>
 
-          {/* Pending file list */}
+          {/* Pending files */}
           <AnimatePresence>
             {files.length > 0 && (
               <motion.ul
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-6 space-y-2 overflow-hidden"
+                className="mt-5 space-y-2 overflow-hidden"
               >
                 {files.map((f) => (
                   <li
                     key={f.id}
-                    className="flex items-center justify-between gap-3 rounded-[10px] border border-[#181818]/10 px-4 py-3"
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-[10px]"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
                   >
                     <div className="min-w-0">
-                      <p className="font-sans text-[14px] text-[#181818] truncate">{f.file.name}</p>
+                      <p className="font-sans text-[14px] text-white truncate">{f.file.name}</p>
                       <p
                         className="font-sans text-[12px] mt-0.5"
-                        style={{ color: f.error ? '#b4342b' : '#9a9a9a' }}
+                        style={{ color: f.error ? '#ff9a9a' : 'rgba(255,255,255,0.4)' }}
                       >
                         {f.error ?? formatSize(f.file.size)}
                       </p>
                     </div>
                     <button
                       onClick={() => removeFile(f.id)}
-                      className="shrink-0 font-sans text-[12px] tracking-[0.06em] uppercase text-[#9a9a9a] transition-colors hover:text-[#181818]"
+                      className="shrink-0 font-sans text-[12px] tracking-[0.06em] uppercase text-white/35 hover:text-white/70 transition-colors"
                       aria-label="Удалить файл"
                     >
                       Убрать
@@ -289,7 +257,7 @@ export default function UploadPage() {
             <button
               onClick={() => void handleSubmit()}
               disabled={submitting || validCount === 0}
-              className="btn-primary-dark w-full mt-6 text-[15px]"
+              className="btn-gold w-full mt-6 text-[15px]"
             >
               {submitting
                 ? 'Загрузка…'
@@ -305,37 +273,41 @@ export default function UploadPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-12"
               >
-                <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-[#6d6d6d] mb-4">
+                <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-4">
                   Обработка
                 </p>
-                <ul className="border-t border-[#181818]/10">
+                <ul className="border-t border-white/10">
                   {rows.map((r) => (
                     <li
                       key={r.id}
-                      className="flex items-center justify-between gap-3 border-b border-[#181818]/10 py-4"
+                      className="flex items-center justify-between gap-3 border-b border-white/10 py-4"
                     >
                       <div className="min-w-0">
-                        <p className="font-sans text-[14px] text-[#181818] truncate">{r.fileName}</p>
+                        <p className="font-sans text-[14px] text-white truncate">{r.fileName}</p>
                         {r.message && (
-                          <p className="font-sans text-[12px] text-[#b4342b] mt-0.5">{r.message}</p>
+                          <p className="font-sans text-[12px] text-[#ff9a9a] mt-0.5">{r.message}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {(r.status === 'uploading' ||
-                          r.status === 'processing' ||
-                          r.status === 'pending') && (
+                        {(r.status === 'uploading' || r.status === 'processing' || r.status === 'pending') && (
                           <span
-                            className="inline-block h-3 w-3 rounded-full border-2 border-[#4a7c59]/30 border-t-[#4a7c59] animate-spin"
+                            className="inline-block h-3 w-3 rounded-full border-2 animate-spin"
+                            style={{ borderColor: 'rgba(255,230,146,0.25)', borderTopColor: '#ffe692' }}
                             aria-hidden
                           />
                         )}
                         {(r.status === 'done' || r.status === 'failed' || r.status === 'error') && (
                           <span
                             className="inline-block h-1.5 w-1.5 rounded-full"
-                            style={{ background: STATUS_DOT[r.status] }}
+                            style={{
+                              background: r.status === 'done' ? 'rgba(255,230,146,0.8)' : '#ff9a9a',
+                            }}
                           />
                         )}
-                        <span className="font-sans text-[13px] text-[#6d6d6d]">
+                        <span
+                          className="font-sans text-[13px]"
+                          style={{ color: r.status === 'done' ? 'rgba(255,230,146,0.8)' : r.status === 'failed' || r.status === 'error' ? '#ff9a9a' : 'rgba(255,255,255,0.45)' }}
+                        >
                           {STATUS_LABEL[r.status]}
                         </span>
                       </div>
@@ -343,15 +315,13 @@ export default function UploadPage() {
                   ))}
                 </ul>
 
-                {rows.every(
-                  (r) => r.status === 'done' || r.status === 'failed' || r.status === 'error',
-                ) &&
+                {rows.every((r) => r.status === 'done' || r.status === 'failed' || r.status === 'error') &&
                   !submitting && (
                     <div className="mt-8 flex flex-wrap items-center gap-4">
-                      <Link href="/dashboard" className="btn-primary-dark text-sm">
+                      <Link href="/dashboard" className="btn-gold text-sm">
                         В личный кабинет
                       </Link>
-                      <Link href="/recommendations" className="btn-outline-dark text-sm">
+                      <Link href="/recommendations" className="btn-outline-gold text-sm">
                         Рекомендации
                       </Link>
                     </div>
