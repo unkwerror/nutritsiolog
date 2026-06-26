@@ -169,12 +169,12 @@ function HeroArt() {
       <FloatImg
         src="/assets/section2-bg.jpg"
         blend="soft-light"
-        mask="radial-gradient(ellipse 70% 70% at 72% 32%, #000 28%, transparent 72%)"
+        mask="radial-gradient(ellipse 58% 56% at 76% 26%, #000 14%, transparent 64%)"
         dy={10}
         dur={16}
-        className="-top-[6%] right-0 w-[120%] opacity-[0.18]
-                   sm:w-[80%] sm:opacity-[0.2]
-                   lg:top-[-8%] lg:right-[-2%] lg:w-[58%] lg:opacity-[0.28]"
+        className="-top-[8%] right-[-6%] w-[120%] opacity-[0.16]
+                   sm:w-[82%] sm:opacity-[0.18]
+                   lg:top-[-10%] lg:right-[-4%] lg:w-[60%] lg:opacity-[0.24]"
       />
 
       {/* Green tendrils — flowing botanical lines on the copy side */}
