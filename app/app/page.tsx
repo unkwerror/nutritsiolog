@@ -134,6 +134,8 @@ type FloatImgProps = {
   src: string
   className: string
   blend?: React.CSSProperties['mixBlendMode']
+  /** radial/linear gradient to feather the image's rectangular edges */
+  mask?: string
   dx?: number
   dy?: number
   rot?: number
@@ -141,14 +143,18 @@ type FloatImgProps = {
   delay?: number
 }
 
-function FloatImg({ src, className, blend = 'screen', dx = 0, dy = 14, rot = 0, dur = 12, delay = 0 }: FloatImgProps) {
+function FloatImg({ src, className, blend = 'screen', mask, dx = 0, dy = 14, rot = 0, dur = 12, delay = 0 }: FloatImgProps) {
   return (
     <motion.img
       src={src}
       alt=""
       draggable={false}
       className={`absolute max-w-none object-contain ${className}`}
-      style={{ mixBlendMode: blend, willChange: 'transform' }}
+      style={{
+        mixBlendMode: blend,
+        willChange: 'transform',
+        ...(mask ? { maskImage: mask, WebkitMaskImage: mask } : {}),
+      }}
       animate={{ x: [0, dx, 0], y: [0, dy, 0], rotate: [0, rot, 0] }}
       transition={{ duration: dur, repeat: Infinity, ease: 'easeInOut', delay }}
     />
@@ -158,15 +164,17 @@ function FloatImg({ src, className, blend = 'screen', dx = 0, dy = 14, rot = 0, 
 function HeroArt() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
-      {/* Liquid / glass texture — atmospheric wash near the top */}
+      {/* Liquid / glass texture — atmospheric wash near the top.
+          Radial mask feathers the image's rectangular edges away. */}
       <FloatImg
         src="/assets/section2-bg.jpg"
         blend="soft-light"
+        mask="radial-gradient(ellipse 70% 70% at 72% 32%, #000 28%, transparent 72%)"
         dy={10}
         dur={16}
-        className="-top-[6%] right-0 w-[120%] opacity-[0.14]
-                   sm:w-[80%] sm:opacity-[0.16]
-                   lg:top-[-8%] lg:right-[-2%] lg:w-[58%] lg:opacity-[0.22]"
+        className="-top-[6%] right-0 w-[120%] opacity-[0.18]
+                   sm:w-[80%] sm:opacity-[0.2]
+                   lg:top-[-8%] lg:right-[-2%] lg:w-[58%] lg:opacity-[0.28]"
       />
 
       {/* Green tendrils — flowing botanical lines on the copy side */}
