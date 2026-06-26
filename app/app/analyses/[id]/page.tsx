@@ -401,8 +401,24 @@ export default function AnalysisDetailPage({ params }: PageProps) {
     setSaving(true)
     setSaveError(null)
     try {
-      const body: { value?: string; unit?: string; comment?: string } = {}
-      if (editForm.value.trim() !== (editingMarker.value ?? '')) body.value = editForm.value.trim()
+      const body: { value?: number | null; unit?: string; comment?: string } = {}
+
+      const rawValue = editForm.value.trim()
+      const prevValue = editingMarker.value ?? ''
+      if (rawValue !== prevValue) {
+        if (rawValue === '') {
+          body.value = null
+        } else {
+          const n = Number(rawValue.replace(',', '.'))
+          if (!Number.isFinite(n)) {
+            setSaveError('Значение должно быть числом')
+            setSaving(false)
+            return
+          }
+          body.value = n
+        }
+      }
+
       if (editForm.unit.trim() !== (editingMarker.unit ?? '')) body.unit = editForm.unit.trim()
       if (editForm.comment.trim() !== (editingMarker.comment ?? '')) body.comment = editForm.comment.trim()
 

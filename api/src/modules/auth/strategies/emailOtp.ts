@@ -40,20 +40,21 @@ export async function checkOtp(email: string, code: string): Promise<boolean> {
     if (!raw) return false
 
     const data = JSON.parse(raw) as OtpData
-    data.attempts++
 
+    // Check code BEFORE incrementing attempts so the last allowed attempt works
+    if (data.code === code) {
+        await redis.del(key)
+        return true
+    }
+
+    data.attempts++
     if (data.attempts >= MAX_ATTEMPTS) {
         await redis.del(key)
         return false
     }
 
-    if (data.code !== code) {
-        await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
-        return false
-    }
-
-    await redis.del(key)
-    return true
+    await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
+    return false
 }
 
 // Проверяет код без удаления — для verify-otp у незарегистрированных юзеров
@@ -64,18 +65,18 @@ export async function peekOtp(email: string, code: string): Promise<boolean> {
     if (!raw) return false
 
     const data = JSON.parse(raw) as OtpData
-    data.attempts++
 
+    if (data.code === code) {
+        await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
+        return true
+    }
+
+    data.attempts++
     if (data.attempts >= MAX_ATTEMPTS) {
         await redis.del(key)
         return false
     }
 
-    if (data.code !== code) {
-        await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
-        return false
-    }
-
     await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
-    return true
+    return false
 }

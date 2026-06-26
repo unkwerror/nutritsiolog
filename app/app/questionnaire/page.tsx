@@ -158,6 +158,22 @@ function SymptomCheck({ opts, values, toggle }: {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+// Required fields per step — used to gate the "Next" button
+const STEP_REQUIRED: (keyof Form)[][] = [
+  ['gender', 'dateOfBirth', 'heightCm', 'weightKg', 'goal'],
+  ['activityLevel', 'sleepDuration', 'sleepQuality', 'bedtime'],
+  ['mealsPerDay', 'dinnerToSleep', 'waterLiters', 'caffeine', 'smoking', 'emotionalEating'],
+  [], // symptoms are optional
+  ['medications', 'supplements'],
+]
+
+function isStepComplete(form: Form, stepIdx: number): boolean {
+  return STEP_REQUIRED[stepIdx]!.every((k) => {
+    const v = form[k]
+    return typeof v === 'string' ? v.trim() !== '' : true
+  })
+}
+
 export default function QuestionnairePage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
@@ -520,9 +536,19 @@ export default function QuestionnairePage() {
             <Link href="/dashboard" className="btn-outline-gold text-sm px-7">Отмена</Link>
           )}
           {step < STEPS.length - 1 ? (
-            <button onClick={() => setStep((s) => s + 1)} className="btn-gold text-sm px-8">Далее</button>
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!isStepComplete(form, step)}
+              className="btn-gold text-sm px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Далее
+            </button>
           ) : (
-            <button onClick={() => void handleSubmit()} disabled={saving} className="btn-gold text-sm px-8">
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={saving || !isStepComplete(form, step)}
+              className="btn-gold text-sm px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               {saving ? 'Сохранение…' : 'Сохранить анкету'}
             </button>
           )}
