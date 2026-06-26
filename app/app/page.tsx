@@ -191,10 +191,13 @@ function HeroArt() {
                    lg:-left-[4%] lg:top-[6%] lg:h-[86%] lg:opacity-45"
       />
 
-      {/* Green knotted-leaf sculpture — main feature */}
+      {/* Green knotted-leaf sculpture — main feature.
+          Mask feathers the asset's dark empty corner (screen would otherwise
+          lighten it into a faint box). */}
       <FloatImg
         src="/assets/hero-bg.jpg"
         blend="screen"
+        mask="radial-gradient(ellipse 78% 86% at 70% 60%, #000 44%, transparent 80%)"
         dy={-16}
         dx={6}
         dur={18}
