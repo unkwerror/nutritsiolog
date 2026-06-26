@@ -47,5 +47,12 @@ ALTER TABLE "analyses" ADD COLUMN "detected_types" "public"."analysis_type"[];
 --> statement-breakpoint
 ALTER TABLE "analyses" DROP COLUMN IF EXISTS "analysis_types";
 --> statement-breakpoint
+DELETE FROM "markers"
+WHERE id NOT IN (
+    SELECT MAX(id)
+    FROM "markers"
+    GROUP BY analysis_id, name, method
+);
+--> statement-breakpoint
 CREATE UNIQUE INDEX "markers_analysis_id_name_method_unique"
     ON "markers" ("analysis_id", "name", "method") NULLS NOT DISTINCT;
