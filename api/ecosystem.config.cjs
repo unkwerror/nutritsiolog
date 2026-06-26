@@ -27,7 +27,7 @@ module.exports = {
         {
             name: 'nutritsiolog-app',
             script: 'node_modules/.bin/next',
-            args: 'start --port 3000',
+            args: 'start --port 3002',
             cwd: '/home/mun/nutritsiolog/app',
             interpreter: 'node',
             env: {
