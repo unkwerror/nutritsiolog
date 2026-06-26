@@ -175,7 +175,7 @@ function HeroSection() {
   return (
     <section ref={ref} className="relative min-h-screen overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #2d3d28 0%, #35462f 38%, #4a6040 75%, #3d5435 100%)' }}>
-      <Navbar />
+      <Navbar variant="dark" />
 
       {/* Gold glow */}
       <div className="absolute pointer-events-none select-none" style={{

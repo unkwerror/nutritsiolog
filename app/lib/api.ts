@@ -23,7 +23,7 @@ export function getAccessToken(): string | null {
   return null
 }
 
-async function tryRefresh(): Promise<boolean> {
+async function doRefresh(): Promise<boolean> {
   try {
     const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
       method: 'POST',
@@ -34,6 +34,18 @@ async function tryRefresh(): Promise<boolean> {
     if (data.accessToken) { setAccessToken(data.accessToken); return true }
     return false
   } catch { return false }
+}
+
+// Single-flight refresh: the backend rotates the refresh token (deletes the old
+// jti) on every call, so concurrent refreshes would burn each other's token and
+// 401. Share one in-flight refresh between all callers that race on a 401.
+let refreshInFlight: Promise<boolean> | null = null
+
+function tryRefresh(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => { refreshInFlight = null })
+  }
+  return refreshInFlight
 }
 
 export async function apiRequest<T>(
