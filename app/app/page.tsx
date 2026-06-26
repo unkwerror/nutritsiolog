@@ -99,46 +99,6 @@ const BENEFITS = [
   { title: 'Конфиденциально', desc: 'Данные хранятся на российских серверах' },
 ]
 
-// ─── Botanical decoration ─────────────────────────────────────────────────────
-
-function BotanicalDecoration() {
-  return (
-    <svg
-      className="absolute right-0 top-0 h-full pointer-events-none select-none"
-      style={{ width: 'auto', maxWidth: '52vw' }}
-      viewBox="0 0 260 800"
-      fill="none"
-      preserveAspectRatio="xMaxYMid meet"
-      aria-hidden
-    >
-      {/* Central stem */}
-      <path d="M 130 820 C 128 680 142 560 128 420 C 112 280 132 160 130 -20"
-        stroke="rgba(255,255,255,0.05)" strokeWidth="1.2" />
-      {/* Right leaf 1 */}
-      <path d="M 130 420 C 165 400 200 382 232 354" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-      <path d="M 232 354 C 222 330 184 326 162 346 C 150 357 148 372 157 382 C 167 394 198 392 220 376 C 230 366 235 356 232 354 Z"
-        stroke="rgba(255,255,255,0.04)" fill="rgba(255,255,255,0.015)" strokeWidth="0.8" />
-      {/* Left leaf 1 */}
-      <path d="M 128 505 C 96 486 62 466 35 438" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-      <path d="M 35 438 C 48 414 87 414 110 434 C 120 444 120 460 112 470 C 102 481 74 478 52 464 C 36 452 30 442 35 438 Z"
-        stroke="rgba(255,255,255,0.03)" fill="rgba(255,255,255,0.01)" strokeWidth="0.8" />
-      {/* Right leaf 2 */}
-      <path d="M 130 312 C 158 292 188 274 218 252" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-      <path d="M 218 252 C 210 230 173 227 152 246 C 141 255 140 270 148 280 C 158 292 188 290 206 276 C 216 267 220 256 218 252 Z"
-        stroke="rgba(255,255,255,0.03)" fill="rgba(255,255,255,0.01)" strokeWidth="0.8" />
-      {/* Left leaf 2 */}
-      <path d="M 128 215 C 98 197 70 182 46 164" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-      <path d="M 46 164 C 57 142 92 142 112 162 C 120 172 120 187 112 196 C 102 206 76 204 58 191 C 44 181 40 168 46 164 Z"
-        stroke="rgba(255,255,255,0.03)" fill="rgba(255,255,255,0.01)" strokeWidth="0.8" />
-      {/* Tendrils */}
-      <path d="M 232 354 C 238 344 245 338 252 333" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
-      <path d="M 218 252 C 226 244 232 238 240 232" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
-      <path d="M 130 610 C 158 592 184 578 208 562" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
-      <path d="M 128 680 C 100 664 78 652 56 638" stroke="rgba(255,255,255,0.025)" strokeWidth="0.8" />
-    </svg>
-  )
-}
-
 // Floating ambient dots
 function AmbientDots() {
   const dots = [
@@ -164,6 +124,46 @@ function AmbientDots() {
   )
 }
 
+// ─── Hero art (Figma assets) ─────────────────────────────────────────────────
+// hero-bg.jpg (green knotted-leaf sculpture) and hero-sculpture.png (gold wire)
+// are exported on black; `mixBlendMode: screen` dissolves the black so only the
+// sculpture glows over the forest gradient.
+function HeroArt() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
+      {/* Green organic sculpture — main feature */}
+      <img
+        src="/assets/hero-bg.jpg"
+        alt=""
+        draggable={false}
+        className="absolute max-w-none object-contain
+                   -right-[22%] top-[3%] w-[135%] opacity-45
+                   sm:-right-[8%] sm:top-[5%] sm:w-[78%] sm:opacity-55
+                   lg:right-[-3%] lg:top-1/2 lg:-translate-y-1/2 lg:w-[50%] lg:opacity-75"
+        style={{ mixBlendMode: 'screen' }}
+      />
+      {/* Gold wire sculpture — accent */}
+      <img
+        src="/assets/hero-sculpture.png"
+        alt=""
+        draggable={false}
+        className="absolute max-w-none object-contain
+                   right-[2%] bottom-[8%] w-[46%] opacity-30
+                   sm:right-[6%] sm:w-[34%] sm:opacity-35
+                   lg:right-[40%] lg:bottom-[16%] lg:w-[15%] lg:opacity-55"
+        style={{ mixBlendMode: 'screen' }}
+      />
+      {/* Readability scrim — darkens lower/left where copy sits (mobile-first) */}
+      <div className="absolute inset-0 lg:hidden" style={{
+        background: 'linear-gradient(195deg, rgba(45,61,40,0) 0%, rgba(45,61,40,0.18) 38%, rgba(45,61,40,0.72) 72%, rgba(45,61,40,0.92) 100%)',
+      }} />
+      <div className="absolute inset-0 hidden lg:block" style={{
+        background: 'linear-gradient(90deg, rgba(45,61,40,0.85) 0%, rgba(45,61,40,0.45) 34%, rgba(45,61,40,0) 60%)',
+      }} />
+    </div>
+  )
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 
 function HeroSection() {
@@ -185,8 +185,8 @@ function HeroSection() {
         filter: 'blur(48px)',
       }} aria-hidden />
 
+      <HeroArt />
       <AmbientDots />
-      <BotanicalDecoration />
 
       <motion.div
         className="relative z-10 flex flex-col justify-center min-h-screen pb-8 px-6 sm:px-10 lg:px-16"
@@ -223,8 +223,15 @@ function HeroSection() {
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3 mt-10">
             {['24 маркера', 'ИИ-распознавание', 'Нутрициологические нормы'].map((tag) => (
               <span key={tag}
-                className="font-sans text-[11px] tracking-[0.12em] px-3 py-1.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
+                className="font-sans text-[11px] tracking-[0.12em] px-3.5 py-1.5 rounded-full"
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: 'rgba(255,255,255,0.6)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.08)',
+                }}>
                 {tag}
               </span>
             ))}
