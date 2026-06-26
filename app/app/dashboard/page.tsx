@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([])
+  const [hasQuestionnaire, setHasQuestionnaire] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -62,6 +63,9 @@ export default function DashboardPage() {
       .then((list) => setAnalyses(Array.isArray(list) ? list : []))
       .catch(() => setAnalyses([]))
       .finally(() => setLoaded(true))
+    apiRequest<{ id: number } | null>('/api/v1/questionnaire/my')
+      .then((q) => setHasQuestionnaire(!!q))
+      .catch(() => setHasQuestionnaire(false))
   }, [])
 
   const analysisCount = analyses.length
@@ -71,8 +75,9 @@ export default function DashboardPage() {
   const steps = [
     {
       n: '01', title: 'Анкета',
-      status: 'Не заполнена', hasStatus: false,
-      cta: 'Заполнить', href: '/questionnaire',
+      status: hasQuestionnaire ? 'Заполнена' : 'Не заполнена',
+      hasStatus: hasQuestionnaire,
+      cta: hasQuestionnaire ? 'Изменить' : 'Заполнить', href: '/questionnaire',
     },
     {
       n: '02', title: 'Анализы',
@@ -171,14 +176,22 @@ export default function DashboardPage() {
             ) : (
               <ul className="border-t border-white/10">
                 {analyses.slice(0, 3).map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-4 border-b border-white/10 py-4">
-                    <div className="min-w-0">
-                      <p className="font-sans text-sm text-white truncate">{typeLabel(a)}</p>
-                      <p className="font-sans text-xs text-white/40 mt-0.5">{formatDate(a.createdAt)}</p>
-                    </div>
-                    <span className="font-sans text-xs shrink-0" style={{ color: a.status === 'done' ? 'rgba(255,230,146,0.8)' : a.status === 'failed' ? 'rgba(180,52,43,0.9)' : 'rgba(255,255,255,0.45)' }}>
-                      {STATUS_LABEL[a.status]}
-                    </span>
+                  <li key={a.id} className="border-b border-white/10">
+                    <Link
+                      href={`/analyses/${a.id}`}
+                      className="group flex items-center justify-between gap-4 py-4 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm text-white truncate group-hover:text-[#ffe692] transition-colors">{typeLabel(a)}</p>
+                        <p className="font-sans text-xs text-white/40 mt-0.5">{formatDate(a.createdAt)}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-sans text-xs" style={{ color: a.status === 'done' ? 'rgba(255,230,146,0.8)' : a.status === 'failed' ? 'rgba(180,52,43,0.9)' : 'rgba(255,255,255,0.45)' }}>
+                          {STATUS_LABEL[a.status]}
+                        </span>
+                        <span className="text-white/30 transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

@@ -190,11 +190,28 @@ export default function QuestionnairePage() {
   // Preload existing answers
   useEffect(() => {
     if (!getAccessToken()) return
-    apiRequest<{ answers: Partial<Form> } | null>('/api/v1/questionnaire/my')
+    apiRequest<{ answers: Record<string, unknown> } | null>('/api/v1/questionnaire/my')
       .then((r) => {
-        if (r?.answers) {
-          setForm((prev) => ({ ...prev, ...(r.answers as Form) }))
-        }
+        if (!r?.answers) return
+        const a = r.answers
+        // Server stores numeric fields as numbers; the form keeps everything as strings.
+        const stringFields: Exclude<keyof Form, 'symptoms'>[] = [
+          'gender', 'dateOfBirth', 'heightCm', 'weightKg', 'waistCm', 'goal',
+          'activityLevel', 'sleepDuration', 'sleepQuality', 'bedtime',
+          'mealsPerDay', 'dinnerToSleep', 'waterLiters', 'caffeine', 'smoking', 'emotionalEating',
+          'medications', 'supplements', 'cycleStatus', 'pms',
+        ]
+        setForm((prev) => {
+          const next: Form = { ...prev }
+          for (const k of stringFields) {
+            const v = a[k]
+            if (v != null) next[k] = String(v)
+          }
+          if (Array.isArray(a['symptoms'])) {
+            next.symptoms = a['symptoms'].filter((s): s is string => typeof s === 'string')
+          }
+          return next
+        })
       })
       .catch(() => {})
   }, [])
