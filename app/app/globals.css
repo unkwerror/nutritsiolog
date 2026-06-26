@@ -6,6 +6,16 @@
 :root {
   --font-commissioner: 'Commissioner Variable', 'Commissioner', ui-sans-serif, system-ui, sans-serif;
   --font-cormorant: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+
+  /* Palette */
+  --paper: #ffffff;
+  --ink: #000000;
+  --carbon: #181818;
+  --ash: #6d6d6d;
+  --smoke: #9a9a9a;
+  --graphite: #636363;
+  --accent: #4a7c59;
+  --accent-glow: #a0e0ab;
 }
 
 @layer base {
@@ -19,7 +29,9 @@
   body {
     min-height: 100dvh;
     overscroll-behavior-y: none;
-    background: #35462f;
+    background: #ffffff;
+    color: #181818;
+    font-family: var(--font-commissioner);
   }
 
   input, textarea, button, select { font-family: inherit }
@@ -28,168 +40,112 @@
   :target { scroll-margin-top: 80px }
 }
 
-@layer utilities {
-  /* Gold gradient text — works without filter (no conflict with text-shadow) */
-  .text-gold {
-    background: linear-gradient(
-      128deg,
-      #9a6c08 0%,
-      #d4a020 16%,
-      #f5d060 34%,
-      #ffe692 50%,
-      #f0c040 64%,
-      #c88c18 80%,
-      #ffd050 94%,
-      #a87010 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
+@layer components {
+  /* ── Pill buttons (75px radius) ──────────────────────────────────────── */
 
-  /* Glassmorphism — outer card (subtle) */
-  .glass-card {
-    background: rgba(255,255,255,0.025);
-    backdrop-filter: blur(1px);
-    -webkit-backdrop-filter: blur(1px);
-    box-shadow:
-      4px 4px 14px rgba(0,0,0,0.42),
-      inset 4px 4px 7px rgba(255,255,255,0.25);
-    border: 1px solid rgba(255,255,255,0.07);
-  }
-
-  /* Glassmorphism — modal/form (stronger blur) */
-  .glass-modal {
-    background: rgba(255,255,255,0.06);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow:
-      4px 4px 14px rgba(0,0,0,0.42),
-      inset 4px 4px 7px rgba(255,255,255,0.25);
-    border: 1px solid rgba(255,255,255,0.12);
-  }
-
-  /* Step cards in "how it works" */
-  .glass-step {
-    background: rgba(255,255,255,0.03);
-    box-shadow:
-      4px 4px 16px rgba(0,0,0,0.4),
-      inset 2px 4px 3px rgba(255,255,255,0.25);
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-
-  /* Translucent input */
-  .glass-input {
-    background: rgba(255,255,255,0.18);
-    border: 1.5px solid rgba(255,255,255,0.2);
-    outline: none;
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-  }
-  .glass-input::placeholder { color: rgba(255,255,255,0.38) }
-  .glass-input:focus {
-    background: rgba(255,255,255,0.26);
-    border-color: rgba(255,230,146,0.6);
-    box-shadow: 0 0 0 2px rgba(255,230,146,0.18);
-  }
-
-  /* Gold-border pill button */
-  .btn-gold {
+  .btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #ffe692;
-    color: white;
-    font-weight: 600;
+    background: #ffffff;
+    color: #181818;
+    font-weight: 500;
     border-radius: 75px;
-    transition: transform 0.14s ease, background 0.14s ease;
-    box-shadow:
-      4px 4px 4px rgba(0,0,0,0.41),
-      inset 1px 1px 2px rgba(255,255,255,0.65);
-    text-shadow: 2px 2px 5px rgba(0,0,0,0.48);
+    border: 1.5px solid #ffffff;
+    transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
     cursor: pointer;
     min-height: 52px;
     padding: 0 2rem;
   }
-  .btn-gold:hover:not(:disabled) { background: rgba(255,230,146,0.08); transform: scale(1.015) }
-  .btn-gold:active:not(:disabled) { transform: scale(0.97) }
-  .btn-gold:disabled { opacity: 0.45; cursor: not-allowed }
+  .btn-primary:hover:not(:disabled) { background: rgba(255,255,255,0.86); transform: translateY(-1px) }
+  .btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.99) }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed }
 
-  /* Outline pill button (ghost CTA on dark sections) */
+  .btn-primary-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #181818;
+    color: #ffffff;
+    font-weight: 500;
+    border-radius: 75px;
+    border: 1.5px solid #181818;
+    transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+    cursor: pointer;
+    min-height: 52px;
+    padding: 0 2rem;
+  }
+  .btn-primary-dark:hover:not(:disabled) { background: #2c2c2c; transform: translateY(-1px) }
+  .btn-primary-dark:active:not(:disabled) { transform: translateY(0) scale(0.99) }
+  .btn-primary-dark:disabled { opacity: 0.4; cursor: not-allowed }
+
   .btn-outline-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1.5px solid rgba(255,255,255,0.22);
-    color: rgba(255,255,255,0.65);
+    background: transparent;
+    border: 1.5px solid rgba(255,255,255,0.32);
+    color: rgba(255,255,255,0.82);
     font-weight: 500;
     border-radius: 75px;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    transition: border-color 0.16s, color 0.16s, background 0.16s;
+    cursor: pointer;
     min-height: 52px;
     padding: 0 2rem;
   }
-  .btn-outline-pill:hover { border-color: rgba(255,255,255,0.48); color: white; background: rgba(255,255,255,0.04) }
+  .btn-outline-pill:hover { border-color: rgba(255,255,255,0.7); color: #ffffff; background: rgba(255,255,255,0.05) }
 
-  /* Outline pill on light section */
-  .btn-outline-pill-dark {
+  .btn-outline-dark {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1.5px solid rgba(28,41,24,0.25);
-    color: rgba(28,41,24,0.65);
+    background: transparent;
+    border: 1.5px solid rgba(24,24,24,0.2);
+    color: rgba(24,24,24,0.78);
     font-weight: 500;
     border-radius: 75px;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color 0.16s, color 0.16s, background 0.16s;
+    cursor: pointer;
     min-height: 52px;
     padding: 0 2rem;
   }
-  .btn-outline-pill-dark:hover { border-color: rgba(28,41,24,0.6); color: #1c2918 }
+  .btn-outline-dark:hover { border-color: rgba(24,24,24,0.55); color: #181818; background: rgba(24,24,24,0.03) }
 
-  /* Ghost nav link */
-  .btn-ghost {
-    color: rgba(255,255,255,0.72);
-    transition: color 0.14s;
+  /* ── Clean input ─────────────────────────────────────────────────────── */
+  .input-clean {
+    background: #ffffff;
+    border: 1.5px solid rgba(24,24,24,0.15);
+    border-radius: 10px;
+    color: #181818;
+    outline: none;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
   }
-  .btn-ghost:hover { color: white }
+  .input-clean::placeholder { color: #9a9a9a }
+  .input-clean:focus {
+    border-color: rgba(24,24,24,0.55);
+    box-shadow: 0 0 0 3px rgba(24,24,24,0.07);
+  }
+}
 
-  /* Drag-over highlight */
+@layer utilities {
+  /* Accent text */
+  .text-accent { color: #4a7c59 }
+
+  /* Drag-over highlight (used by dev upload tool) */
   .dropzone-active {
-    border-color: #ffe692 !important;
-    background: rgba(255,230,146,0.07) !important;
-  }
-
-  /* Gradient backgrounds */
-  .bg-hero {
-    background: linear-gradient(to bottom, #35462f 60%, #4a6040 100%);
-  }
-  .bg-how {
-    background: linear-gradient(to bottom, #adbf9c 0%, #35472e 77%);
-  }
-  .bg-cta {
-    background: linear-gradient(to bottom, #35472e 21%, #aabc99 100%);
+    border-color: #4a7c59 !important;
+    background: rgba(74,124,89,0.06) !important;
   }
 }
 
-/* Floating animation for decorative elements */
-@keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg) }
-  33% { transform: translateY(-14px) rotate(1.5deg) }
-  66% { transform: translateY(-8px) rotate(-1deg) }
-}
-
+/* Floating animation for decorative sculpture */
 @keyframes float-slow {
   0%, 100% { transform: translateY(0) }
-  50% { transform: translateY(-20px) }
+  50% { transform: translateY(-22px) }
 }
 
-@keyframes pulse-border {
-  0%, 100% { border-color: rgba(255,230,146,0.6) }
-  50% { border-color: rgba(255,230,146,1) }
-}
-
-.animate-float { animation: float 7s ease-in-out infinite }
-.animate-float-slow { animation: float-slow 10s ease-in-out infinite }
+.animate-float-slow { animation: float-slow 11s ease-in-out infinite }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-float, .animate-float-slow { animation: none }
+  .animate-float-slow { animation: none }
 }
