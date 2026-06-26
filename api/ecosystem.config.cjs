@@ -25,6 +25,22 @@ module.exports = {
             max_memory_restart: '256M'
         },
         {
+            name: 'nutritsiolog-app',
+            script: 'node_modules/.bin/next',
+            args: 'start --port 3000',
+            cwd: '/home/mun/nutritsiolog/app',
+            interpreter: 'node',
+            env: {
+                NODE_ENV: 'production',
+                NEXT_PUBLIC_API_URL: 'https://api.nutrtisiolog.ru'
+            },
+            exec_mode: 'fork',
+            instances: 1,
+            autorestart: true,
+            watch: false,
+            max_memory_restart: '512M'
+        },
+        {
             // Только dev/staging — на prod удалить и настроить реальный SMTP в .env
             name: 'mailpit',
             script: '/usr/local/bin/mailpit',

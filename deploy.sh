@@ -26,10 +26,21 @@ npm run build
 echo "==> Running migrations..."
 npm run migrate
 
-echo "==> Pruning dev dependencies..."
+echo "==> Pruning API dev dependencies..."
 npm prune --omit=dev
 
+# ── Frontend (Next.js) ────────────────────────────────────────────────────────
+FRONT_DIR="/home/mun/nutritsiolog/app"
+cd "$FRONT_DIR"
+
+echo "==> Installing frontend dependencies..."
+npm ci
+
+echo "==> Building frontend..."
+npm run build
+
 echo "==> Restarting processes..."
+cd "$APP_DIR"
 pm2 delete ecosystem.config.cjs 2>/dev/null || true
 pm2 start ecosystem.config.cjs
 pm2 save
