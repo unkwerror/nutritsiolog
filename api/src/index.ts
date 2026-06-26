@@ -27,7 +27,17 @@ app.setSerializerCompiler(serializerCompiler)
 // security
 // CSP отключён — настраивается на уровне Nginx в prod (там же терминация TLS)
 app.register(helmet, { contentSecurityPolicy: false })
-app.register(cors, { origin: config.CORS_ORIGIN })
+const allowedOrigins = config.CORS_ORIGIN.split(',').map((s: string) => s.trim())
+app.register(cors, {
+    origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            cb(null, true)
+        } else {
+            cb(new Error('CORS not allowed'), false)
+        }
+    },
+    credentials: true,
+})
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 
 // инфраструктура
