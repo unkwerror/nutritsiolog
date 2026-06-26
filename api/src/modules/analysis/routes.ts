@@ -3,9 +3,14 @@ import { z } from 'zod'
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { AnalysisRepository } from './repository.js'
 import { AnalysisService } from './service.js'
+import { MinioStorage } from './infrastructure/storage.js'
+import { BullMQQueue } from './infrastructure/queue.js'
 import { ValidationError } from '../../core/errors.js'
 import { createSubscriber } from '../../core/redis.js'
 import { config } from '../../core/config.js'
+
+const storage = new MinioStorage()
+const queue = new BullMQQueue()
 
 const AnalysisResultSchema = z.object({
     analysisId: z.number(),
@@ -23,7 +28,7 @@ const MarkerSchema = z.object({
     referenceMax: z.string().nullable(),
     referenceRaw: z.string().nullable(),
     isOutOfRange: z.boolean(),
-    outOfRangeDirection: z.string().nullable(),
+    outOfRangeDirection: z.enum(['low', 'high']).nullable(),
     isEdited: z.boolean(),
     originalValue: z.string().nullable(),
     comment: z.string().nullable(),
@@ -39,10 +44,24 @@ const MarkerEditSchema = z.object({
     comment: z.string().nullable().optional(),
 })
 
+const analysisStatusValues = ['pending', 'processing', 'done', 'failed'] as const
+const analysisTypeValues = [
+    'cbc',
+    'biochemistry',
+    'thyroid',
+    'hormones',
+    'vitamins',
+    'coagulation',
+    'urinalysis',
+    'lipid',
+    'immunology',
+    'other',
+] as const
+
 const AnalysisListItemSchema = z.object({
     id: z.number(),
-    status: z.string(),
-    analysisTypes: z.string().nullable(),
+    status: z.enum(analysisStatusValues),
+    detectedTypes: z.array(z.enum(analysisTypeValues)).nullable(),
     analysisType: z.string().nullable(),
     typeSource: z.string(),
     labName: z.string().nullable(),
@@ -88,12 +107,20 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 if (part.type === 'file') {
                     const buffer = await part.toBuffer()
                     files.push({ buffer, mimeType: part.mimetype, originalName: part.filename })
-                } else if (part.fieldname === 'analysisType' && typeof part.value === 'string' && part.value) {
+                } else if (
+                    part.fieldname === 'analysisType' &&
+                    typeof part.value === 'string' &&
+                    part.value
+                ) {
                     analysisType = part.value
                 }
             }
 
-            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const service = new AnalysisService(
+                new AnalysisRepository(request.server.db),
+                storage,
+                queue
+            )
             const result = await service.createAnalysis(request.user.id, files, {
                 analysisType,
                 ocrProvider: config.OCR_PROVIDER,
@@ -114,7 +141,11 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             preHandler: [fastify.authenticate],
         },
         async (request, reply) => {
-            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const service = new AnalysisService(
+                new AnalysisRepository(request.server.db),
+                storage,
+                queue
+            )
             const list = await service.listAnalyses(request.user.id)
             return reply.send(list)
         }
@@ -192,7 +223,9 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
             // Send current status immediately so client knows we're connected
             if (!raw.destroyed) {
-                raw.write(`data: ${JSON.stringify({ status: analysis.status, analysisId: numId })}\n\n`)
+                raw.write(
+                    `data: ${JSON.stringify({ status: analysis.status, analysisId: numId })}\n\n`
+                )
             }
 
             const timer = setTimeout(
@@ -228,7 +261,11 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             if (!Number.isInteger(numId) || numId < 1)
                 throw new ValidationError('INVALID_ID', 'Invalid analysis id')
 
-            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const service = new AnalysisService(
+                new AnalysisRepository(request.server.db),
+                storage,
+                queue
+            )
             const analysis = await service.getAnalysis(numId, request.user.id)
 
             return reply.send(analysis)
@@ -251,7 +288,11 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             preHandler: [fastify.authenticate],
         },
         async (request, reply) => {
-            const service = new AnalysisService(new AnalysisRepository(request.server.db))
+            const service = new AnalysisService(
+                new AnalysisRepository(request.server.db),
+                storage,
+                queue
+            )
             const updated = await service.updateMarker(
                 request.params.markerId,
                 request.user.id,

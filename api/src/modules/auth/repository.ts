@@ -5,7 +5,7 @@ import { users } from '../../db/schema.js'
 type DB = PostgresJsDatabase
 type NewUser = Pick<
     typeof users.$inferInsert,
-    'email' | 'phone' | 'firstName' | 'lastName' | 'consentPd'
+    'email' | 'phone' | 'firstName' | 'lastName' | 'consentPd' | 'consentMedicalData'
 >
 
 export class UsersRepository {

@@ -46,6 +46,7 @@ export class AuthService {
             firstName: data.firstName,
             lastName: data.lastName,
             consentPd: data.consentPd,
+            consentMedicalData: data.consentMedicalData,
         })
 
         await this.repo.setEmailVerified(user.id)

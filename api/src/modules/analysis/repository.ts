@@ -26,12 +26,25 @@ type NewMarker = {
     referenceMax?: string | null
     referenceRaw?: string | null
     isOutOfRange: boolean
-    outOfRangeDirection?: string | null
+    outOfRangeDirection?: 'low' | 'high' | null
     isEdited?: boolean
     originalValue?: string | null
     comment?: string | null
     method?: string | null
 }
+
+type MarkerUpdate = Partial<{
+    name: string
+    value: string | null
+    unit: string | null
+    referenceMin: string | null
+    referenceMax: string | null
+    comment: string | null
+    isOutOfRange: boolean
+    outOfRangeDirection: 'low' | 'high' | null
+    isEdited: boolean
+    originalValue: string | null
+}>
 
 export class AnalysisRepository {
     constructor(private db: DB) {}
@@ -53,7 +66,7 @@ export class AnalysisRepository {
             .select({
                 id: analyses.id,
                 status: analyses.status,
-                analysisTypes: analyses.analysisTypes,
+                detectedTypes: analyses.detectedTypes,
                 analysisType: analyses.analysisType,
                 typeSource: analyses.typeSource,
                 labName: analyses.labName,
@@ -77,7 +90,8 @@ export class AnalysisRepository {
         return analysis ?? null
     }
 
-    // Returns the latest version of each (name, method) pair (handles is_edited rows)
+    // Returns latest version of each (name, method) pair — safety net for legacy append-only data.
+    // With update-in-place (decision 030) each marker has exactly one row, so dedup is a no-op.
     async findMarkersByAnalysisId(analysisId: number) {
         const all = await this.db
             .select()
@@ -85,7 +99,6 @@ export class AnalysisRepository {
             .where(eq(markers.analysisId, analysisId))
             .orderBy(desc(markers.id))
 
-        // Last-write-wins dedup: iterate reversed (newest first), skip already-seen keys
         const seen = new Set<string>()
         const latest: typeof all = []
         for (const m of all) {
@@ -95,8 +108,6 @@ export class AnalysisRepository {
                 latest.push(m)
             }
         }
-
-        // Restore natural insertion order (oldest first per first occurrence)
         return latest.reverse()
     }
 
@@ -106,12 +117,20 @@ export class AnalysisRepository {
             .from(markers)
             .innerJoin(analyses, eq(markers.analysisId, analyses.id))
             .where(and(eq(markers.id, markerId), eq(analyses.userId, userId)))
-
         return rows[0]?.marker ?? null
     }
 
     async insertMarker(data: NewMarker) {
         const [inserted] = await this.db.insert(markers).values(data).returning()
         return inserted ?? null
+    }
+
+    async updateMarker(markerId: number, data: MarkerUpdate) {
+        const [updated] = await this.db
+            .update(markers)
+            .set(data)
+            .where(eq(markers.id, markerId))
+            .returning()
+        return updated ?? null
     }
 }

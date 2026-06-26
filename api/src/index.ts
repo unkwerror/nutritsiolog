@@ -14,7 +14,7 @@ import analysisRoutes from './modules/analysis/routes.js'
 import healthRoutes from './modules/health/routes.js'
 import devtoolsRoutes from './modules/devtools/upload.js'
 import demoRoutes from './modules/demo/routes.js'
-import { ensureBucket } from './services/storage.js'
+import { MinioStorage } from './modules/analysis/infrastructure/storage.js'
 import { config } from './core/config.js'
 import logger from './core/logger.js'
 import errorHandler from './core/errorHandler.js'
@@ -59,7 +59,7 @@ process.on('SIGTERM', async () => {
 
 const start = async () => {
     try {
-        await ensureBucket()
+        await new MinioStorage().ensureBucket()
         await app.listen({ port: config.PORT, host: '0.0.0.0' })
     } catch (err) {
         app.log.error({ err }, 'Failed to start')

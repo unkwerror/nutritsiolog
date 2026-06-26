@@ -1,9 +1,10 @@
 import { z } from 'zod'
 import { sql } from 'drizzle-orm'
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
-import { analysisQueue } from '../../queues/analysisQueue.js'
-import { ensureBucket } from '../../services/storage.js'
+import * as Minio from 'minio'
+import { redis } from '../../core/redis.js'
 import { transporter } from '../../core/mailer.js'
+import { config } from '../../core/config.js'
 
 const HealthSchema = z.object({
     status: z.enum(['ok', 'degraded', 'down']),
@@ -13,6 +14,14 @@ const HealthSchema = z.object({
         minio: z.boolean(),
         smtp: z.boolean(),
     }),
+})
+
+const minioClient = new Minio.Client({
+    endPoint: config.MINIO_ENDPOINT,
+    port: config.MINIO_PORT,
+    useSSL: config.MINIO_USE_SSL,
+    accessKey: config.MINIO_ACCESS_KEY,
+    secretKey: config.MINIO_SECRET_KEY,
 })
 
 const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
@@ -26,7 +35,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
         },
         async (request, reply) => {
             let pg = false
-            let redis = false
+            let redisOk = false
             let minio = false
             let smtp = false
 
@@ -37,13 +46,14 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 /* noop */
             }
             try {
-                await (await analysisQueue.client).ping()
-                redis = true
+                await redis.ping()
+                redisOk = true
             } catch {
                 /* noop */
             }
             try {
-                await ensureBucket()
+                // bucketExists is a lightweight read — does not mutate
+                await minioClient.bucketExists(config.MINIO_BUCKET)
                 minio = true
             } catch {
                 /* noop */
@@ -55,8 +65,8 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 /* noop */
             }
 
-            const checks = { pg, redis, minio, smtp }
-            const isCritical = pg && redis && minio
+            const checks = { pg, redis: redisOk, minio, smtp }
+            const isCritical = pg && redisOk && minio
 
             return reply
                 .code(isCritical ? 200 : 503)

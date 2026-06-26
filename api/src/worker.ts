@@ -2,13 +2,30 @@ import './core/proxy.js'
 import { Worker } from 'bullmq'
 import { eq } from 'drizzle-orm'
 
-import { getFileBuffer } from './services/storage.js'
+import { MinioStorage } from './modules/analysis/infrastructure/storage.js'
+
+const storage = new MinioStorage()
 import { createOcrService } from './ocr/index.js'
-import { analyses, markers } from './db/schema.js'
+import { analyses, markers, type analysisTypeEnum } from './db/schema.js'
 import { db } from './db/client.js'
 import { redis } from './core/redis.js'
 import { config } from './core/config.js'
 import logger from './core/logger.js'
+
+type AnalysisType = (typeof analysisTypeEnum.enumValues)[number]
+
+const SECTION_TO_TYPE: Record<string, AnalysisType> = {
+    'Общий анализ крови': 'cbc',
+    Биохимия: 'biochemistry',
+    'Гормоны щитовидной железы': 'thyroid',
+    'Половые гормоны': 'hormones',
+    'Витамины и микроэлементы': 'vitamins',
+    Коагулограмма: 'coagulation',
+    'Общий анализ мочи': 'urinalysis',
+    'Липидный профиль': 'lipid',
+    Иммунология: 'immunology',
+    Другое: 'other',
+}
 
 const ocrService = createOcrService(config)
 
@@ -50,24 +67,37 @@ const worker = new Worker<AnalysisJobData>(
             .set({ status: 'processing', updatedAt: new Date() })
             .where(eq(analyses.id, analysisId))
 
-        await redis.publish(`analysis:${analysisId}`, JSON.stringify({ status: 'processing', analysisId }))
+        await redis.publish(
+            `analysis:${analysisId}`,
+            JSON.stringify({ status: 'processing', analysisId })
+        )
         log.info('status set to processing')
 
         try {
-            const buffer = await getFileBuffer(fileKey)
+            const buffer = await storage.getBuffer(fileKey)
             const result = await ocrService.parseLabResult(buffer, mimeType, analysisType)
 
             log.info({ markerCount: result.markers.length }, 'parsed markers')
 
-            // Deduplicate by name — OCR may return the same marker twice
+            // Deduplicate by (name, method) — OCR may return the same marker twice
             const seen = new Set<string>()
-            const uniqueMarkers = result.markers.filter((m: { name: string }) => {
-                if (seen.has(m.name)) return false
-                seen.add(m.name)
-                return true
-            })
+            const uniqueMarkers = result.markers.filter(
+                (m: { name: string; method: string | null }) => {
+                    const key = `${m.name}|${m.method ?? ''}`
+                    if (seen.has(key)) return false
+                    seen.add(key)
+                    return true
+                }
+            )
 
-            const analysisTypes = [...new Set(uniqueMarkers.map((m: { section: string }) => m.section))].join(',')
+            // Map OCR section names to canonical analysisTypeEnum values
+            const detectedTypes = [
+                ...new Set(
+                    uniqueMarkers
+                        .map((m: { section: string | null }) => SECTION_TO_TYPE[m.section ?? ''])
+                        .filter((t): t is AnalysisType => t !== undefined)
+                ),
+            ]
 
             await db.transaction(async (tx) => {
                 await tx.insert(markers).values(
@@ -94,7 +124,7 @@ const worker = new Worker<AnalysisJobData>(
                     .update(analyses)
                     .set({
                         status: 'done',
-                        analysisTypes,
+                        detectedTypes,
                         ocrProvider: ocrProvider ?? config.OCR_PROVIDER,
                         labName: result.lab?.name,
                         labAddress: result.lab?.address,

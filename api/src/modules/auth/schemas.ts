@@ -21,6 +21,7 @@ export const RegisterSchema = z.object({
     firstName: z.string().min(1).max(100),
     lastName: z.string().min(1).max(100),
     consentPd: z.literal(true),
+    consentMedicalData: z.literal(true),
 })
 
 export type RequestOtpBody = z.infer<typeof RequestOtpSchema>

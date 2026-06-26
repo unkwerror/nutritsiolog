@@ -10,21 +10,32 @@ import {
     timestamp,
     date,
     index,
+    uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 export const genderEnum = pgEnum('gender', ['male', 'female'])
 
-export const analysisTypeEnum = pgEnum('analysis_type', [
-    'cbc',
-    'protein',
-    'carb',
-    'liver',
-    'lipid',
-    'thyroid',
-    'electrolytes',
-    'iron',
-    'inflammation',
+export const analysisStatusEnum = pgEnum('analysis_status', [
+    'pending',
+    'processing',
+    'done',
+    'failed',
 ])
+
+export const analysisTypeEnum = pgEnum('analysis_type', [
+    'cbc', // Общий анализ крови
+    'biochemistry', // Биохимия
+    'thyroid', // Гормоны щитовидной железы
+    'hormones', // Половые гормоны
+    'vitamins', // Витамины и микроэлементы
+    'coagulation', // Коагулограмма
+    'urinalysis', // Общий анализ мочи
+    'lipid', // Липидный профиль
+    'immunology', // Иммунология
+    'other', // Другое
+])
+
+export const outOfRangeDirectionEnum = pgEnum('out_of_range_direction', ['low', 'high'])
 
 export const users = pgTable(
     'users',
@@ -67,7 +78,7 @@ export const analyses = pgTable(
         labPhone: varchar('lab_phone', { length: 100 }),
 
         patientFullName: varchar('patient_full_name', { length: 255 }),
-        patientGender: varchar('patient_gender', { length: 10 }),
+        patientGender: genderEnum('patient_gender'),
         patientBirthDate: varchar('patient_birth_date', { length: 20 }),
         patientAge: integer('patient_age'),
 
@@ -80,8 +91,10 @@ export const analyses = pgTable(
         fileMimeType: varchar('file_mime_type', { length: 100 }),
         fileSize: integer('file_size'),
 
-        status: varchar('status', { length: 20 }).notNull().default('pending'),
-        analysisTypes: text('analysis_types'),
+        status: analysisStatusEnum('status').notNull().default('pending'),
+        // detectedTypes: auto-detected from OCR section names (canonical for frontend filtering)
+        detectedTypes: analysisTypeEnum('detected_types').array(),
+        // analysisType: manual override/hint from user at upload time
         analysisType: varchar('analysis_type', { length: 20 }),
         typeSource: varchar('type_source', { length: 10 }).notNull().default('manual'),
         ocrProvider: varchar('ocr_provider', { length: 20 }),
@@ -113,7 +126,7 @@ export const markers = pgTable(
         referenceRaw: varchar('reference_raw', { length: 255 }),
 
         isOutOfRange: boolean('is_out_of_range').notNull().default(false),
-        outOfRangeDirection: varchar('out_of_range_direction', { length: 10 }),
+        outOfRangeDirection: outOfRangeDirectionEnum('out_of_range_direction'),
 
         isEdited: boolean('is_edited').notNull().default(false),
         originalValue: numeric('original_value', { precision: 12, scale: 4 }),
@@ -125,6 +138,12 @@ export const markers = pgTable(
     },
     (table) => [
         index('markers_analysis_id_idx').on(table.analysisId),
+        // NULLS NOT DISTINCT: two markers with same (analysisId, name, method=null) conflict
+        uniqueIndex('markers_analysis_id_name_method_unique').on(
+            table.analysisId,
+            table.name,
+            table.method
+        ),
     ]
 )
 

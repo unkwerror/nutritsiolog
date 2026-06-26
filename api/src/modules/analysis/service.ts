@@ -1,8 +1,11 @@
-import { uploadFile } from '../../services/storage.js'
-import { analysisQueue } from '../../queues/analysisQueue.js'
+import { fileTypeFromBuffer } from 'file-type'
+import { type StoragePort } from './infrastructure/storage.js'
+import { type QueuePort } from './infrastructure/queue.js'
 import { type AnalysisRepository } from './repository.js'
 import { AnalysisNotFoundError, NothingUploadedError } from './errors.js'
-import { NotFoundError } from '../../core/errors.js'
+import { NotFoundError, ValidationError } from '../../core/errors.js'
+
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
 
 type FileInput = {
     buffer: Buffer
@@ -25,7 +28,11 @@ type MarkerEditInput = {
 }
 
 export class AnalysisService {
-    constructor(private repo: AnalysisRepository) {}
+    constructor(
+        private repo: AnalysisRepository,
+        private storage: StoragePort,
+        private queue: QueuePort
+    ) {}
 
     async createAnalysis(userId: string, files: FileInput[], opts: CreateAnalysisOptions = {}) {
         if (files.length === 0) throw new NothingUploadedError()
@@ -33,22 +40,31 @@ export class AnalysisService {
         const results: Array<{ analysisId: number; status: string }> = []
 
         for (const file of files) {
-            const fileKey = await uploadFile(file.buffer, file.originalName, file.mimeType)
+            // 10.3: validate MIME by magic bytes, not client-provided Content-Type
+            const detected = await fileTypeFromBuffer(file.buffer)
+            if (!detected || !(ALLOWED_MIME_TYPES as readonly string[]).includes(detected.mime)) {
+                throw new ValidationError(
+                    'INVALID_FILE_TYPE',
+                    `Unsupported file type: ${detected?.mime ?? 'unknown'}`
+                )
+            }
+
+            const fileKey = await this.storage.upload(file.buffer, file.originalName, detected.mime)
             const analysis = await this.repo.insert({
                 userId,
                 fileKey,
                 fileOriginalName: file.originalName,
-                fileMimeType: file.mimeType,
+                fileMimeType: detected.mime,
                 fileSize: file.buffer.length,
                 analysisType: opts.analysisType,
                 typeSource: opts.analysisType ? 'manual' : 'ai',
                 ocrProvider: opts.ocrProvider,
             })
 
-            await analysisQueue.add('parse', {
+            await this.queue.add({
                 analysisId: analysis.id,
                 fileKey,
-                mimeType: file.mimeType,
+                mimeType: detected.mime,
                 analysisType: opts.analysisType,
                 ocrProvider: opts.ocrProvider,
             })
@@ -70,38 +86,78 @@ export class AnalysisService {
         return { ...analysis, markers: analysisMarkers }
     }
 
-    // Per decision 039: editing creates a new marker row with is_edited=true (append-only)
+    // Decision 030: update-in-place (not append-only).
+    // isOutOfRange is preserved from OCR unless user explicitly changes referenceMin/Max.
     async updateMarker(markerId: number, userId: string, input: MarkerEditInput) {
         const existing = await this.repo.findMarkerWithOwner(markerId, userId)
         if (!existing) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
 
-        // Compute merged numeric values for isOutOfRange recalculation
-        const mergedValue  = input.value        !== undefined ? input.value        : (existing.value        !== null ? Number(existing.value)        : null)
-        const mergedMin    = input.referenceMin  !== undefined ? input.referenceMin  : (existing.referenceMin  !== null ? Number(existing.referenceMin)  : null)
-        const mergedMax    = input.referenceMax  !== undefined ? input.referenceMax  : (existing.referenceMax  !== null ? Number(existing.referenceMax)  : null)
+        const userChangedRef = input.referenceMin !== undefined || input.referenceMax !== undefined
 
-        const tooLow  = mergedValue !== null && mergedMin !== null && Number.isFinite(mergedValue) && Number.isFinite(mergedMin)  && mergedValue < mergedMin
-        const tooHigh = mergedValue !== null && mergedMax !== null && Number.isFinite(mergedValue) && Number.isFinite(mergedMax) && mergedValue > mergedMax
+        let isOutOfRange = existing.isOutOfRange
+        let outOfRangeDirection = existing.outOfRangeDirection
 
-        const inserted = await this.repo.insertMarker({
-            analysisId:          existing.analysisId,
-            name:                input.name           !== undefined ? input.name           : existing.name,
-            code:                existing.code,
-            section:             existing.section,
-            value:               input.value          !== undefined ? (input.value          !== null ? String(input.value)         : null) : existing.value,
-            unit:                input.unit           !== undefined ? input.unit           : existing.unit,
-            referenceMin:        input.referenceMin   !== undefined ? (input.referenceMin   !== null ? String(input.referenceMin)  : null) : existing.referenceMin,
-            referenceMax:        input.referenceMax   !== undefined ? (input.referenceMax   !== null ? String(input.referenceMax)  : null) : existing.referenceMax,
-            referenceRaw:        existing.referenceRaw,
-            isOutOfRange:        tooLow || tooHigh,
-            outOfRangeDirection: tooLow ? 'low' : tooHigh ? 'high' : null,
-            isEdited:            true,
-            originalValue:       existing.value,
-            comment:             input.comment        !== undefined ? input.comment        : existing.comment,
-            method:              existing.method,
+        if (userChangedRef) {
+            const mergedValue =
+                input.value !== undefined
+                    ? input.value
+                    : existing.value !== null
+                      ? Number(existing.value)
+                      : null
+            const mergedMin =
+                input.referenceMin !== undefined
+                    ? input.referenceMin
+                    : existing.referenceMin !== null
+                      ? Number(existing.referenceMin)
+                      : null
+            const mergedMax =
+                input.referenceMax !== undefined
+                    ? input.referenceMax
+                    : existing.referenceMax !== null
+                      ? Number(existing.referenceMax)
+                      : null
+
+            const tooLow =
+                mergedValue !== null &&
+                mergedMin !== null &&
+                Number.isFinite(mergedValue) &&
+                Number.isFinite(mergedMin) &&
+                mergedValue < mergedMin
+            const tooHigh =
+                mergedValue !== null &&
+                mergedMax !== null &&
+                Number.isFinite(mergedValue) &&
+                Number.isFinite(mergedMax) &&
+                mergedValue > mergedMax
+
+            isOutOfRange = tooLow || tooHigh
+            outOfRangeDirection = tooLow ? 'low' : tooHigh ? 'high' : null
+        }
+
+        // originalValue stores the first (OCR) value — only set on the first edit
+        const originalValue =
+            !existing.isEdited && input.value !== undefined ? existing.value : undefined
+
+        const updated = await this.repo.updateMarker(markerId, {
+            ...(input.name !== undefined ? { name: input.name } : {}),
+            ...(input.value !== undefined
+                ? { value: input.value !== null ? String(input.value) : null }
+                : {}),
+            ...(input.unit !== undefined ? { unit: input.unit } : {}),
+            ...(input.referenceMin !== undefined
+                ? { referenceMin: input.referenceMin !== null ? String(input.referenceMin) : null }
+                : {}),
+            ...(input.referenceMax !== undefined
+                ? { referenceMax: input.referenceMax !== null ? String(input.referenceMax) : null }
+                : {}),
+            ...(input.comment !== undefined ? { comment: input.comment } : {}),
+            isOutOfRange,
+            outOfRangeDirection,
+            isEdited: true,
+            ...(originalValue !== undefined ? { originalValue } : {}),
         })
 
-        if (!inserted) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
-        return inserted
+        if (!updated) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
+        return updated
     }
 }
