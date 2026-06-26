@@ -125,40 +125,109 @@ function AmbientDots() {
 }
 
 // ─── Hero art (Figma assets) ─────────────────────────────────────────────────
-// hero-bg.jpg (green knotted-leaf sculpture) and hero-sculpture.png (gold wire)
-// are exported on black; `mixBlendMode: screen` dissolves the black so only the
-// sculpture glows over the forest gradient.
+// All five assets are transparent cutouts. They are layered back-to-front and
+// each drifts on its own loop so the composition feels alive. Blend modes:
+// `screen` makes the gold/green sculptures glow; `soft-light` keeps the liquid
+// texture atmospheric.
+
+type FloatImgProps = {
+  src: string
+  className: string
+  blend?: React.CSSProperties['mixBlendMode']
+  dx?: number
+  dy?: number
+  rot?: number
+  dur?: number
+  delay?: number
+}
+
+function FloatImg({ src, className, blend = 'screen', dx = 0, dy = 14, rot = 0, dur = 12, delay = 0 }: FloatImgProps) {
+  return (
+    <motion.img
+      src={src}
+      alt=""
+      draggable={false}
+      className={`absolute max-w-none object-contain ${className}`}
+      style={{ mixBlendMode: blend, willChange: 'transform' }}
+      animate={{ x: [0, dx, 0], y: [0, dy, 0], rotate: [0, rot, 0] }}
+      transition={{ duration: dur, repeat: Infinity, ease: 'easeInOut', delay }}
+    />
+  )
+}
+
 function HeroArt() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
-      {/* Green organic sculpture — main feature */}
-      <img
+      {/* Liquid / glass texture — atmospheric wash near the top */}
+      <FloatImg
+        src="/assets/section2-bg.jpg"
+        blend="soft-light"
+        dy={10}
+        dur={16}
+        className="-top-[6%] right-0 w-[120%] opacity-[0.14]
+                   sm:w-[80%] sm:opacity-[0.16]
+                   lg:top-[-8%] lg:right-[-2%] lg:w-[58%] lg:opacity-[0.22]"
+      />
+
+      {/* Green tendrils — flowing botanical lines on the copy side */}
+      <FloatImg
+        src="/assets/auth-bg.png"
+        blend="screen"
+        dx={-8}
+        dy={18}
+        rot={-1.5}
+        dur={14}
+        delay={0.6}
+        className="-left-[24%] top-[2%] h-[64%] w-auto opacity-25
+                   sm:-left-[12%] sm:h-[72%] sm:opacity-30
+                   lg:-left-[4%] lg:top-[6%] lg:h-[86%] lg:opacity-45"
+      />
+
+      {/* Green knotted-leaf sculpture — main feature */}
+      <FloatImg
         src="/assets/hero-bg.jpg"
-        alt=""
-        draggable={false}
-        className="absolute max-w-none object-contain
-                   -right-[22%] top-[3%] w-[135%] opacity-45
-                   sm:-right-[8%] sm:top-[5%] sm:w-[78%] sm:opacity-55
-                   lg:right-[-3%] lg:top-1/2 lg:-translate-y-1/2 lg:w-[50%] lg:opacity-75"
-        style={{ mixBlendMode: 'screen' }}
+        blend="screen"
+        dy={-16}
+        dx={6}
+        dur={18}
+        className="-right-[22%] top-[3%] w-[135%] opacity-50
+                   sm:-right-[8%] sm:top-[5%] sm:w-[78%] sm:opacity-60
+                   lg:right-[-3%] lg:top-[50%] lg:-translate-y-1/2 lg:w-[50%] lg:opacity-80"
       />
-      {/* Gold wire sculpture — accent */}
-      <img
+
+      {/* Gold horizontal wire + beads — upper gold accent */}
+      <FloatImg
+        src="/assets/section3-sculpture.jpg"
+        blend="screen"
+        dx={10}
+        dy={-10}
+        rot={2}
+        dur={13}
+        delay={1.2}
+        className="right-[1%] top-[3%] w-[58%] opacity-30
+                   sm:right-[3%] sm:w-[44%] sm:opacity-35
+                   lg:right-[1%] lg:top-[7%] lg:w-[30%] lg:opacity-60"
+      />
+
+      {/* Gold vertical wire — accent element */}
+      <FloatImg
         src="/assets/hero-sculpture.png"
-        alt=""
-        draggable={false}
-        className="absolute max-w-none object-contain
-                   right-[2%] bottom-[8%] w-[46%] opacity-30
-                   sm:right-[6%] sm:w-[34%] sm:opacity-35
-                   lg:right-[40%] lg:bottom-[16%] lg:w-[15%] lg:opacity-55"
-        style={{ mixBlendMode: 'screen' }}
+        blend="screen"
+        dy={16}
+        rot={-2.5}
+        dur={11}
+        delay={0.3}
+        className="right-[4%] bottom-[9%] w-[42%] opacity-30
+                   sm:right-[8%] sm:w-[30%] sm:opacity-40
+                   lg:right-[39%] lg:bottom-[13%] lg:w-[14%] lg:opacity-65"
       />
-      {/* Readability scrim — darkens lower/left where copy sits (mobile-first) */}
+
+      {/* Readability scrims — keep copy legible over the art */}
       <div className="absolute inset-0 lg:hidden" style={{
-        background: 'linear-gradient(195deg, rgba(45,61,40,0) 0%, rgba(45,61,40,0.18) 38%, rgba(45,61,40,0.72) 72%, rgba(45,61,40,0.92) 100%)',
+        background: 'linear-gradient(195deg, rgba(45,61,40,0.12) 0%, rgba(45,61,40,0.28) 40%, rgba(45,61,40,0.74) 73%, rgba(45,61,40,0.93) 100%)',
       }} />
       <div className="absolute inset-0 hidden lg:block" style={{
-        background: 'linear-gradient(90deg, rgba(45,61,40,0.85) 0%, rgba(45,61,40,0.45) 34%, rgba(45,61,40,0) 60%)',
+        background: 'linear-gradient(90deg, rgba(45,61,40,0.88) 0%, rgba(45,61,40,0.5) 33%, rgba(45,61,40,0) 58%)',
       }} />
     </div>
   )
