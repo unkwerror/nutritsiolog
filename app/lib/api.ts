@@ -61,7 +61,9 @@ export async function apiRequest<T>(
     const ok = await tryRefresh()
     if (ok) return apiRequest<T>(path, init, true)
     clearAccessToken()
-    if (typeof window !== 'undefined') window.location.href = '/auth'
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
+      window.location.href = '/auth'
+    }
     throw new Error('Сессия истекла')
   }
 
