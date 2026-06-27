@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
   const steps = [
     { key: 'q', n: '01', icon: 'survey', title: 'Анкета', to: '/questionnaire', done: hasQuestionnaire, status: hasQuestionnaire ? 'Заполнена' : 'Не заполнена', cta: hasQuestionnaire ? 'Изменить' : 'Заполнить', nextLabel: 'Заполните анкету о здоровье' },
-    { key: 'a', n: '02', icon: 'lab', title: 'Анализы', to: '/analyses/upload', done: analysisCount > 0, status: analysisCount > 0 ? `${analysisCount} загружено` : 'Нет анализов', cta: 'Загрузить', nextLabel: 'Загрузите свои анализы' },
+    { key: 'a', n: '02', icon: 'lab', title: 'Анализы', to: '/analyses', done: analysisCount > 0, status: analysisCount > 0 ? `${analysisCount} загружено` : 'Нет анализов', cta: analysisCount > 0 ? 'Смотреть' : 'Загрузить', nextLabel: 'Загрузите свои анализы' },
     { key: 'r', n: '03', icon: 'insight', title: 'Рекомендации', to: '/recommendations', done: hasDone && hasQuestionnaire, status: hasDone ? 'Доступны' : 'Нужны данные', cta: 'Смотреть', nextLabel: 'Откройте рекомендации' },
   ]
   const next = steps.find((s) => !s.done)
@@ -152,8 +152,8 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
               <h2 className="font-display" style={{ fontWeight: 500, fontSize: 22, color: '#fff', margin: 0 }}>Последние анализы</h2>
               {analysisCount > 0 && (
-                <a onClick={() => router.push('/analyses/upload')} style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer' }}>
-                  Добавить
+                <a onClick={() => router.push('/analyses')} style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer' }}>
+                  Все анализы →
                 </a>
               )}
             </div>

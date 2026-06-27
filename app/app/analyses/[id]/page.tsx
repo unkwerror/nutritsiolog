@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
-import { Navbar } from '@/components/Navbar'
+import { AppBackground, AppNav } from '@/components/ds/AppCommon'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -439,15 +439,16 @@ export default function AnalysisDetailPage({ params }: PageProps) {
     }
   }
 
-  const pageBg = 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)'
-
   // Loading
   if (loading) {
     return (
-      <main className="min-h-screen" style={{ background: pageBg }}>
-        <Navbar transparent={false} variant="dark" />
-        <div className="flex items-center justify-center min-h-screen">
-          <p className="font-sans text-sm text-white/35">Загрузка…</p>
+      <main style={{ position: 'relative', minHeight: '100vh' }}>
+        <AppBackground glow="14%" />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <AppNav onBack={() => router.push('/analyses')} backLabel="К анализам" />
+          <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
+            <p className="font-sans text-sm text-white/35">Загрузка…</p>
+          </div>
         </div>
       </main>
     )
@@ -456,15 +457,16 @@ export default function AnalysisDetailPage({ params }: PageProps) {
   // Error / not found
   if (fetchError || !analysis) {
     return (
-      <main className="min-h-screen" style={{ background: pageBg }}>
-        <Navbar transparent={false} variant="dark" />
-        <div className="flex flex-col items-center justify-center min-h-screen gap-5 px-6">
-          <p className="font-sans text-sm text-white/55 text-center">
-            {fetchError ?? 'Анализ не найден'}
-          </p>
-          <Link href="/dashboard" className="btn-outline-gold" style={{ fontSize: '0.875rem' }}>
-            ← Вернуться в кабинет
-          </Link>
+      <main style={{ position: 'relative', minHeight: '100vh' }}>
+        <AppBackground glow="14%" />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <AppNav onBack={() => router.push('/analyses')} backLabel="К анализам" />
+          <div className="flex flex-col items-center justify-center gap-5 px-6" style={{ minHeight: '60vh' }}>
+            <p className="font-sans text-sm text-white/55 text-center">{fetchError ?? 'Анализ не найден'}</p>
+            <Link href="/analyses" className="btn-outline-gold" style={{ fontSize: '0.875rem' }}>
+              ← К анализам
+            </Link>
+          </div>
         </div>
       </main>
     )
@@ -477,18 +479,12 @@ export default function AnalysisDetailPage({ params }: PageProps) {
       : null
 
   return (
-    <main className="min-h-screen" style={{ background: pageBg }}>
-      <Navbar transparent={false} variant="dark" />
+    <main style={{ position: 'relative', minHeight: '100vh' }}>
+      <AppBackground glow="14%" />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <AppNav onBack={() => router.push('/analyses')} backLabel="К анализам" />
 
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-24 pb-28">
-
-        {/* Back link */}
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 font-sans text-[11px] text-white/35 hover:text-white/60 transition-colors mb-10 tracking-[0.18em] uppercase"
-        >
-          ← Личный кабинет
-        </Link>
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-8 pb-28">
 
         {/* Analysis header */}
         <motion.div
@@ -584,6 +580,7 @@ export default function AnalysisDetailPage({ params }: PageProps) {
             Нажмите на маркер, чтобы отредактировать значение
           </p>
         )}
+        </div>
       </div>
 
       {/* Edit drawer */}

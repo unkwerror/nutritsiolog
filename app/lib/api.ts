@@ -73,8 +73,11 @@ export async function apiRequest<T>(
     const ok = await tryRefresh()
     if (ok) return apiRequest<T>(path, init, true)
     clearAccessToken()
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
-      window.location.href = '/auth'
+    // Не редиректим с публичных страниц (лендинг «/», «/auth»): AuthProvider там
+    // просто проверяет наличие сессии. Защищённые страницы уводят на /auth сами.
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname
+      if (p !== '/' && !p.startsWith('/auth')) window.location.href = '/auth'
     }
     throw new Error('Сессия истекла')
   }
