@@ -198,6 +198,20 @@ export function buildProfilePdf(
         const left = doc.page.margins.left
         const width = doc.page.width - left - doc.page.margins.right
 
+        const bottomY = () => doc.page.height - doc.page.margins.bottom
+        // Резервирует блок высотой h на текущей странице; если не влезает — новая.
+        // Без этого строки с явными y «расползаются» по одной на страницу.
+        const ensure = (h: number) => {
+            if (doc.y + h > bottomY()) doc.addPage()
+        }
+        // Обрезает текст по ширине с многоточием (для текущего шрифта/кегля).
+        const fitText = (text: string, maxW: number): string => {
+            if (doc.widthOfString(text) <= maxW) return text
+            let t = text
+            while (t.length > 1 && doc.widthOfString(`${t}…`) > maxW) t = t.slice(0, -1)
+            return `${t}…`
+        }
+
         const sectionTitle = (t: string) => {
             doc.moveDown(0.9)
             doc.font(FONT.serifBold).fontSize(14).fillColor(COLOR.forest).text(t, left, doc.y)
@@ -211,24 +225,26 @@ export function buildProfilePdf(
         }
         // строка «ключ … значение» (значение справа)
         const kvRow = (k: string, v: string, valueColor = COLOR.ink) => {
+            ensure(18)
             const top = doc.y
             doc.font(FONT.sans)
                 .fontSize(9.5)
                 .fillColor(COLOR.muted)
-                .text(k, left, top, { width: width * 0.48 })
-            const kb = doc.y
+                .text(k, left, top, { width: width * 0.48, lineBreak: false })
             doc.font(FONT.sans)
                 .fontSize(9.5)
                 .fillColor(valueColor)
-                .text(v, left + width * 0.48, top, { width: width * 0.52, align: 'right' })
-            doc.y = Math.max(kb, doc.y)
-            doc.moveDown(0.12)
+                .text(v, left + width * 0.48, top, {
+                    width: width * 0.52,
+                    align: 'right',
+                    lineBreak: false,
+                })
+            doc.y = top + 17 // фиксированная высота строки — не даёт разрыву по странице
             doc.strokeColor('#eef1ea')
                 .lineWidth(0.5)
-                .moveTo(left, doc.y)
-                .lineTo(left + width, doc.y)
+                .moveTo(left, doc.y - 5)
+                .lineTo(left + width, doc.y - 5)
                 .stroke()
-            doc.moveDown(0.18)
         }
 
         // ── Шапка ────────────────────────────────────────────────────────────
@@ -304,6 +320,7 @@ export function buildProfilePdf(
                 .text('Анализы не загружены.', { width })
         } else {
             for (const a of data.analyses) {
+                ensure(40) // заголовок анализа + хотя бы одна строка маркера
                 doc.moveDown(0.4)
                 const head = [a.labName ?? 'Анализ', fmtDate(new Date(a.createdAt))].join('  ·  ')
                 doc.font(FONT.sansBold)
@@ -322,12 +339,8 @@ export function buildProfilePdf(
                     continue
                 }
                 for (const m of a.markers) {
+                    ensure(15)
                     const top = doc.y
-                    doc.font(FONT.sans)
-                        .fontSize(9.5)
-                        .fillColor(COLOR.ink)
-                        .text(m.name, left, top, { width: width * 0.6 })
-                    const nameBottom = doc.y
                     const valueText = `${trimNumeric(m.value)} ${m.unit ?? ''}`.trim()
                     const dir = m.outOfRangeDirection
                     const color = m.isOutOfRange
@@ -335,6 +348,7 @@ export function buildProfilePdf(
                             ? COLOR.critical
                             : COLOR.warning
                         : COLOR.muted
+                    // значение справа — сперва меряем ширину
                     doc.font(m.isOutOfRange ? FONT.sansBold : FONT.sans)
                         .fontSize(9.5)
                         .fillColor(color)
@@ -342,7 +356,7 @@ export function buildProfilePdf(
                     const textX = left + width - tw
                     if (m.isOutOfRange && (dir === 'high' || dir === 'low')) {
                         const tx = textX - 12
-                        const ty = top + 1.5
+                        const ty = top + 2
                         doc.save().fillColor(color)
                         if (dir === 'high')
                             doc.moveTo(tx, ty + 7)
@@ -357,8 +371,10 @@ export function buildProfilePdf(
                         doc.restore()
                     }
                     doc.fillColor(color).text(valueText, textX, top, { lineBreak: false })
-                    doc.y = Math.max(nameBottom, doc.y)
-                    doc.moveDown(0.28)
+                    // имя слева — на той же строке, обрезаем чтобы не залезть на значение
+                    doc.font(FONT.sans).fontSize(9.5).fillColor(COLOR.ink)
+                    doc.text(fitText(m.name, textX - left - 22), left, top, { lineBreak: false })
+                    doc.y = top + 15 // фиксированная высота строки маркера
                 }
             }
         }
@@ -373,6 +389,7 @@ export function buildProfilePdf(
                 .text('Недостаточно данных для рекомендаций.', { width })
         } else {
             for (const s of signals) {
+                ensure(52) // заголовок + ярлык + первые строки текста
                 const top = doc.y
                 const sev = SEVERITY[s.severity]
                 doc.circle(left + 4, top + 6, 3).fill(sev.color)
