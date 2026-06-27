@@ -29,6 +29,18 @@ const ConfigSchema = z.object({
 
     DEMO_ACCESS_KEY: z.string().optional(),
 
+    // Список email'ов с доступом к админ-панели (через запятую).
+    // Доступ привязан к почте: requireAdmin сверяет request.user.email с этим списком.
+    ADMIN_EMAILS: z
+        .string()
+        .default('')
+        .transform((s) =>
+            s
+                .split(',')
+                .map((e) => e.trim().toLowerCase())
+                .filter(Boolean)
+        ),
+
     CORS_ORIGIN: z.string().default('http://localhost:3000'),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 
