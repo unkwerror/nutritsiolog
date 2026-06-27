@@ -331,7 +331,9 @@
   line-height: 1;
   letter-spacing: -0.015em;
   white-space: nowrap;
-  font-size: clamp(2.9rem, 8.6vw, 7rem);
+  width: fit-content;          /* ширина = ширине слова — маска не режет хвост */
+  max-width: 100%;             /* на мобильном не вылезет за экран */
+  font-size: clamp(2.6rem, 7.6vw, 6.5rem);
   background: linear-gradient(110deg, #9a6c08 0%, #d4a020 18%, #f5d060 34%, #fff4d5 50%, #f0c040 64%, #c88c18 82%, #ffd050 100%);
   background-size: 200% auto;
   -webkit-background-clip: text; background-clip: text;
@@ -427,6 +429,8 @@
 .analysis-row:hover { background: rgba(255,255,255,0.04) }
 .dropzone:hover { border-color: rgba(255,230,146,0.5) !important; background: rgba(255,230,146,0.05) !important }
 .nav-back:hover { color: #fff !important }
+/* Когда есть кнопка «Назад», прячем слово лого на узких экранах (остаётся монограмма-ссылка) */
+@media (max-width: 520px) { .app-nav.has-back .app-nav-word { display: none } }
 .pdf-btn:hover { background: rgba(255,230,146,0.14) !important; border-color: var(--gold) !important }
 .link-btn { background: none; border: none; color: rgba(255,255,255,0.45); font-size: 14px; cursor: pointer; font-family: var(--font-sans); align-self: center; transition: color .15s }
 .link-btn:hover { color: rgba(255,255,255,0.8) }

@@ -297,8 +297,8 @@ export default function AdminPage() {
             borderBottom: '1px solid var(--line)',
           }}
         >
-          <a href="/dashboard" className="inline-flex items-center gap-3">
-            <img src="/assets/brand/monogram.svg" alt="" width={32} height={32} />
+          <a href="/" aria-label="На главную" title="На главную" className="inline-flex items-center gap-3 cursor-pointer no-underline">
+            <img src="/assets/brand/monogram.svg" alt="На главную" width={32} height={32} />
             <span className="font-display italic text-white" style={{ fontWeight: 500, fontSize: 20 }}>
               Нутрициолог
             </span>

@@ -189,11 +189,11 @@ function Hero({ start }: { start: boolean }) {
       </div>
       <HeroMotes />
 
-      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 'calc(100vh - 78px)', padding: '0 clamp(1.5rem, 5vw, 5rem)', maxWidth: 760 }}>
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 'calc(100vh - 78px)', padding: '0 clamp(1.5rem, 5vw, 5rem)', maxWidth: 1120, width: '100%', boxSizing: 'border-box' }}>
         <p className={`hero-eyebrow ${go}`} style={{ fontSize: 11, letterSpacing: '0.34em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)', margin: '0 0 30px' }}>
           Персональный нутрициологический профиль
         </p>
-        <h1 style={{ margin: 0 }}>
+        <h1 style={{ margin: 0, width: 'fit-content', maxWidth: '100%' }}>
           <span className="line-mask">
             <span className={`line-inner headline-gold ${go}`} style={{ transitionDelay: '160ms' }}>
               Нутрициолог

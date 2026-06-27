@@ -186,7 +186,7 @@ export function AppNav({
 }) {
   return (
     <nav
-      className="app-nav"
+      className={`app-nav${onBack ? ' has-back' : ''}`}
       style={{
         position: 'sticky',
         top: 0,
@@ -201,23 +201,25 @@ export function AppNav({
         borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      {onBack ? (
-        <button
-          onClick={onBack}
-          className="nav-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, letterSpacing: '0.04em' }}
-        >
-          <span style={{ fontSize: 16 }}>←</span>
-          {backLabel ?? 'Назад'}
-        </button>
-      ) : (
-        <Link href="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
-          <img src={`${BRAND}monogram.svg`} alt="" width={32} height={32} />
-          <span className="font-display" style={{ fontStyle: 'italic', fontWeight: 500, fontSize: 20, color: '#fff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="nav-back"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, letterSpacing: '0.04em' }}
+          >
+            <span style={{ fontSize: 16 }}>←</span>
+            {backLabel ?? 'Назад'}
+          </button>
+        )}
+        {/* Логотип всегда ведёт на лендинг (корень) со всех экранов */}
+        <Link href="/" aria-label="На главную" title="На главную" style={{ display: 'inline-flex', alignItems: 'center', gap: 11, textDecoration: 'none', cursor: 'pointer' }}>
+          <img src={`${BRAND}monogram.svg`} alt="На главную" width={32} height={32} />
+          <span className="app-nav-word font-display" style={{ fontStyle: 'italic', fontWeight: 500, fontSize: 20, color: '#fff' }}>
             Нутрициолог
           </span>
         </Link>
-      )}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {completeness != null && (
           <div className="app-nav-pct" style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
