@@ -74,7 +74,12 @@ export class AdminService {
 
     async getProfilePdf(userId: string): Promise<{ buffer: Buffer; fileName: string }> {
         const detail = await this.getUserDetail(userId)
-        const buffer = await buildProfilePdf(detail)
+        const qRow = await new QuestionnaireRepository(this.db).findLatestByUser(userId)
+        const answers =
+            qRow && typeof qRow.answers === 'object' && qRow.answers !== null
+                ? (qRow.answers as Record<string, unknown>)
+                : null
+        const buffer = await buildProfilePdf(detail, answers)
         const slug = [detail.user.lastName, detail.user.firstName]
             .filter(Boolean)
             .join('_')

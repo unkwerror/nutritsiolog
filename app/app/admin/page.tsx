@@ -244,19 +244,19 @@ export default function AdminPage() {
       .finally(() => setDetailLoading(false))
   }, [selectedId])
 
-  async function downloadPdf(userId: string) {
+  async function downloadPdf(user: UserDetail['user']) {
     setPdfBusy(true)
     try {
       // apiFetch — с авто-refresh токена (сырой fetch падал 401 на протухшем токене)
-      const res = await apiFetch(`/api/v1/admin/users/${userId}/profile.pdf`)
+      const res = await apiFetch(`/api/v1/admin/users/${user.id}/profile.pdf`)
       if (!res.ok) throw new Error('pdf')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      const cd = res.headers.get('Content-Disposition') ?? ''
-      const m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/.exec(cd)
-      a.download = m ? decodeURIComponent(m[1] ?? '') || (m[2] ?? 'profile.pdf') : 'profile.pdf'
+      // Имя файла считаем на клиенте из ФИО (кириллица допустима) — гарантируем .pdf
+      const slug = [user.lastName, user.firstName].filter(Boolean).join('_').replace(/[\\/:*?"<>|\s]+/g, '_')
+      a.download = `profile_${slug || user.id}.pdf`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -436,7 +436,7 @@ export default function AdminPage() {
                 detail={detail}
                 tab={tab}
                 setTab={setTab}
-                onPdf={() => downloadPdf(detail.user.id)}
+                onPdf={() => downloadPdf(detail.user)}
                 pdfBusy={pdfBusy}
               />
             )}
