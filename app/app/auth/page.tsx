@@ -20,6 +20,7 @@ export default function AuthPage() {
   const [code, setCode] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
   const [consentPd, setConsentPd] = useState(false)
   const [consentMedical, setConsentMedical] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -81,7 +82,8 @@ export default function AuthPage() {
           email,
           code: code.trim(),
           firstName: firstName.trim(),
-          lastName: lastName.trim() || undefined,
+          lastName: lastName.trim(),
+          phone: phone.trim(),
           consentPd,
           consentMedicalData: consentMedical,
         }),
@@ -162,10 +164,13 @@ export default function AuthPage() {
                   <Field label="Имя *">
                     <Input autoComplete="given-name" required placeholder="Иван" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                   </Field>
-                  <Field label="Фамилия">
-                    <Input autoComplete="family-name" placeholder="Иванов" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                  <Field label="Фамилия *">
+                    <Input autoComplete="family-name" required placeholder="Иванов" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                   </Field>
                 </div>
+                <Field label="Телефон *">
+                  <Input type="tel" autoComplete="tel" required placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </Field>
                 <Consent checked={consentPd} onChange={setConsentPd}>
                   Согласие на обработку персональных данных <i style={{ color: '#ff9a9a', fontStyle: 'normal' }}>*</i>
                 </Consent>
@@ -173,7 +178,7 @@ export default function AuthPage() {
                   Согласие на обработку медицинских данных <i style={{ color: '#ff9a9a', fontStyle: 'normal' }}>*</i>
                 </Consent>
                 {error && <ErrorMsg>{error}</ErrorMsg>}
-                <Button type="submit" variant="gold" disabled={isLoading || !firstName.trim() || !consentPd || !consentMedical} style={{ width: '100%' }}>
+                <Button type="submit" variant="gold" disabled={isLoading || !firstName.trim() || !lastName.trim() || !phone.trim() || !consentPd || !consentMedical} style={{ width: '100%' }}>
                   {isLoading ? 'Создаём профиль…' : 'Создать профиль'}
                 </Button>
                 <button type="button" onClick={() => { setStep('otp'); setError(null) }} className="link-btn">

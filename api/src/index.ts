@@ -40,6 +40,7 @@ app.register(cors, {
         }
     },
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
 })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 

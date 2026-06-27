@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const SearchUsersQuery = z.object({
     // Поиск по почте, имени, фамилии, отчеству. Несколько слов — все должны совпасть.
     q: z.string().trim().max(200).optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
+    limit: z.coerce.number().int().min(1).max(1000).default(50),
     offset: z.coerce.number().int().min(0).default(0),
 })
 export type SearchUsersQuery = z.infer<typeof SearchUsersQuery>

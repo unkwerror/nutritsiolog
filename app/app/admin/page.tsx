@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
-import { apiRequest, getAccessToken, API_BASE } from '@/lib/api'
+import { apiRequest, apiFetch } from '@/lib/api'
 import { Motes } from '@/components/ds/AppCommon'
 
 // ─── API types (mirror api/src/modules/admin/schemas.ts) ─────────────────────
@@ -216,9 +216,10 @@ export default function AdminPage() {
   // Debounced search.
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const runSearch = useCallback((q: string) => {
-    apiRequest<SearchResponse>(`/api/v1/admin/users?q=${encodeURIComponent(q)}&limit=50`)
+    // limit=1000 → effectively «все пользователи» (MVP); поиск по имени/email на бэке
+    apiRequest<SearchResponse>(`/api/v1/admin/users?q=${encodeURIComponent(q)}&limit=1000`)
       .then(setResults)
-      .catch(() => setResults({ total: 0, limit: 50, offset: 0, users: [] }))
+      .catch(() => setResults({ total: 0, limit: 1000, offset: 0, users: [] }))
   }, [])
   useEffect(() => {
     if (gate !== 'ok') return
@@ -246,23 +247,21 @@ export default function AdminPage() {
   async function downloadPdf(userId: string) {
     setPdfBusy(true)
     try {
-      const token = getAccessToken()
-      const res = await fetch(`${API_BASE}/api/v1/admin/users/${userId}/profile.pdf`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: 'include',
-      })
+      // apiFetch — с авто-refresh токена (сырой fetch падал 401 на протухшем токене)
+      const res = await apiFetch(`/api/v1/admin/users/${userId}/profile.pdf`)
       if (!res.ok) throw new Error('pdf')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       const cd = res.headers.get('Content-Disposition') ?? ''
-      const m = /filename="([^"]+)"/.exec(cd)
-      a.download = m?.[1] ?? 'profile.pdf'
+      const m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/.exec(cd)
+      a.download = m ? decodeURIComponent(m[1] ?? '') || (m[2] ?? 'profile.pdf') : 'profile.pdf'
       document.body.appendChild(a)
       a.click()
       a.remove()
-      URL.revokeObjectURL(url)
+      // отложенный revoke — иначе Chrome успевает отменить скачивание
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
     } catch {
       alert('Не удалось выгрузить PDF. Обновите страницу и попробуйте снова.')
     } finally {

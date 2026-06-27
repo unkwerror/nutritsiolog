@@ -89,6 +89,27 @@ export async function apiRequest<T>(
   return data as T
 }
 
+/**
+ * Like apiRequest but returns the raw Response — for binary downloads (PDF, etc.)
+ * where we need the blob/headers, not JSON. Same refresh-on-401 behaviour.
+ */
+export async function apiFetch(path: string, init: RequestInit = {}, _retried = false): Promise<Response> {
+  const token = getAccessToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (init.headers) Object.assign(headers, init.headers as Record<string, string>)
+
+  const res = await fetch(`${API_URL}${path}`, { ...init, credentials: 'include', headers })
+
+  if (res.status === 401 && !_retried) {
+    const ok = await tryRefresh()
+    if (ok) return apiFetch(path, init, true)
+    clearAccessToken()
+    throw new Error('Сессия истекла')
+  }
+  return res
+}
+
 export function buildSseUrl(path: string): string {
   return `${API_URL}${path}`
 }

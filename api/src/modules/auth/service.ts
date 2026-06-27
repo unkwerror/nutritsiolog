@@ -1,6 +1,7 @@
 import { sendOtp, checkOtp, peekOtp } from './strategies/emailOtp.js'
 import { type UsersRepository } from './repository.js'
 import { OtpInvalidError, UserNeedsRegistrationError, UserAlreadyExistsError } from './errors.js'
+import { ConflictError } from '../../core/errors.js'
 import { type RequestOtpBody, type VerifyOtpBody, type RegisterBody } from './schemas.js'
 
 export class AuthService {
@@ -38,11 +39,16 @@ export class AuthService {
         const existing = await this.repo.findByEmail(email)
         if (existing) throw new UserAlreadyExistsError()
 
+        const phone = data.phone.trim()
+        const phoneTaken = await this.repo.findByPhone(phone)
+        if (phoneTaken) throw new ConflictError('PHONE_TAKEN', 'Этот телефон уже используется')
+
         const valid = await checkOtp(email, data.code)
         if (!valid) throw new OtpInvalidError()
 
         const user = await this.repo.create({
             email,
+            phone,
             firstName: data.firstName,
             lastName: data.lastName,
             consentPd: data.consentPd,
