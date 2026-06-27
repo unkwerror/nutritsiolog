@@ -40,6 +40,9 @@ app.register(cors, {
         }
     },
     credentials: true,
+    // По умолчанию @fastify/cors разрешает только GET,HEAD,POST — без этого
+    // preflight для PATCH/PUT/DELETE падает с CORS-ошибкой.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     exposedHeaders: ['Content-Disposition'],
 })
 app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
