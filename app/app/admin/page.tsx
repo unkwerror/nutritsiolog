@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { apiRequest, getAccessToken, API_BASE } from '@/lib/api'
+import { Motes } from '@/components/ds/AppCommon'
 
 // ─── API types (mirror api/src/modules/admin/schemas.ts) ─────────────────────
 
@@ -284,6 +285,7 @@ export default function AdminPage() {
   return (
     <main className="relative min-h-screen">
       <LivingBackground />
+      <Motes count={22} />
 
       <div className="relative z-10">
         {/* top bar */}

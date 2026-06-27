@@ -4,7 +4,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiRequest, setAccessToken } from '@/lib/api'
-import { AppBackground, Motes } from '@/components/ds/AppCommon'
+import { AppBackground } from '@/components/ds/AppCommon'
 import { GlassCard, Button, Input, Field, ProgressSteps } from '@/components/ds/primitives'
 
 type ApiResp<T> = T & { error?: { message?: string; code?: string } }
@@ -98,7 +98,6 @@ export default function AuthPage() {
   return (
     <main style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1.25rem' }}>
       <AppBackground glow="42%" />
-      <Motes count={24} />
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440 }}>
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <img src={`${BRAND}monogram.svg`} alt="" width={64} style={{ marginBottom: 14 }} />
