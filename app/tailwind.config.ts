@@ -8,7 +8,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['var(--font-cormorant)', 'Georgia', 'serif'],
+        display: ['var(--font-display)', 'Georgia', 'serif'],
+        serif: ['var(--font-serif)', 'Georgia', 'serif'],
         sans: ['var(--font-commissioner)', 'ui-sans-serif', 'system-ui'],
       },
       colors: {

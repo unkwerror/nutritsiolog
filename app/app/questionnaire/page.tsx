@@ -1,54 +1,30 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { Navbar } from '@/components/Navbar'
-
-const ease: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
-
-const slide: Variants = {
-  initial: { opacity: 0, x: 32 },
-  animate: { opacity: 1, x: 0, transition: { duration: 0.4, ease } },
-  exit: { opacity: 0, x: -32, transition: { duration: 0.22, ease } },
-}
-const stagger: Variants = {
-  initial: {},
-  animate: { transition: { staggerChildren: 0.07 } },
-}
-const row: Variants = {
-  initial: { opacity: 0, y: 14 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease } },
-}
-
-// ─── Form state ──────────────────────────────────────────────────────────────
+import { AppBackground, AppNav, Burst } from '@/components/ds/AppCommon'
+import { RadioGroup, CheckboxRow, Input, Field, Button } from '@/components/ds/primitives'
 
 type Form = {
-  // Step 1
   gender: string
   dateOfBirth: string
   heightCm: string
   weightKg: string
   waistCm: string
   goal: string
-  // Step 2
   activityLevel: string
   sleepDuration: string
   sleepQuality: string
   bedtime: string
-  // Step 3
   mealsPerDay: string
   dinnerToSleep: string
   waterLiters: string
   caffeine: string
   smoking: string
   emotionalEating: string
-  // Step 4
   symptoms: string[]
-  // Step 5
   medications: string
   supplements: string
   cycleStatus: string
@@ -63,9 +39,15 @@ const INIT: Form = {
   medications: '', supplements: '', cycleStatus: '', pms: '',
 }
 
-const STEPS = ['Базовые данные', 'Образ жизни', 'Питание', 'Симптомы', 'Здоровье']
+const STEPS_META = [
+  { label: 'Базовые', title: 'Расскажите о себе', sub: 'Базовые параметры нужны для расчёта норм' },
+  { label: 'Образ жизни', title: 'Ваш образ жизни', sub: 'Активность и сон сильно влияют на биохимию' },
+  { label: 'Питание', title: 'Питание', sub: 'Как устроен ваш рацион сейчас' },
+  { label: 'Симптомы', title: 'Что вас беспокоит', sub: 'Отметьте всё, что актуально прямо сейчас' },
+  { label: 'Здоровье', title: 'Здоровье', sub: 'Лекарства, добавки и гормональный статус' },
+]
 
-const SYMPTOM_OPTS: { value: string; label: string }[] = [
+const SYMPTOM_OPTS = [
   { value: 'fatigue', label: 'Постоянная усталость, нет сил' },
   { value: 'bloating', label: 'Вздутие или тяжесть после еды' },
   { value: 'gut_issues', label: 'Нестабильный стул (запор/диарея)' },
@@ -78,123 +60,50 @@ const SYMPTOM_OPTS: { value: string; label: string }[] = [
   { value: 'cold_extremities', label: 'Холодные конечности, зябкость' },
 ]
 
-// ─── UI atoms ────────────────────────────────────────────────────────────────
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[14px] text-white/65 mb-2.5">{children}</p>
-}
-
-function Radio({ name, options, value, onChange }: {
-  name: string; options: { v: string; l: string }[]
-  value: string; onChange: (v: string) => void
-}) {
-  return (
-    <div className="grid gap-2">
-      {options.map((o) => {
-        const on = value === o.v
-        return (
-          <button
-            key={o.v} type="button" onClick={() => onChange(o.v)}
-            className="flex items-center gap-3 rounded-[10px] px-4 py-3 text-left transition-all"
-            style={{
-              border: on ? '1.5px solid rgba(255,230,146,0.65)' : '1.5px solid rgba(255,255,255,0.1)',
-              background: on ? 'rgba(255,230,146,0.05)' : 'rgba(255,255,255,0.025)',
-            }}
-            aria-pressed={on}
-          >
-            <span
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
-              style={{ borderColor: on ? '#ffe692' : 'rgba(255,255,255,0.28)' }}
-            >
-              {on && <span className="h-2 w-2 rounded-full bg-[#ffe692]" />}
-            </span>
-            <span className="font-sans text-[14px] text-white/90">{o.l}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function SymptomCheck({ opts, values, toggle }: {
-  opts: { value: string; label: string }[]
-  values: string[]
-  toggle: (v: string) => void
-}) {
-  return (
-    <div className="grid gap-2">
-      {opts.map((o) => {
-        const on = values.includes(o.value)
-        return (
-          <button
-            key={o.value} type="button" onClick={() => toggle(o.value)}
-            className="flex items-center gap-3 rounded-[10px] px-4 py-3 text-left transition-all"
-            style={{
-              border: on ? '1.5px solid rgba(255,230,146,0.65)' : '1.5px solid rgba(255,255,255,0.1)',
-              background: on ? 'rgba(255,230,146,0.05)' : 'rgba(255,255,255,0.025)',
-            }}
-            aria-pressed={on}
-          >
-            <span
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-all"
-              style={{
-                borderColor: on ? '#ffe692' : 'rgba(255,255,255,0.28)',
-                background: on ? '#ffe692' : 'transparent',
-              }}
-            >
-              {on && (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
-                  <path d="M2.5 6.2 5 8.5l4.5-5" stroke="#35462f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </span>
-            <span className="font-sans text-[14px] text-white/90">{o.label}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Page ────────────────────────────────────────────────────────────────────
-
-// Required fields per step — used to gate the "Next" button
 const STEP_REQUIRED: (keyof Form)[][] = [
   ['gender', 'dateOfBirth', 'heightCm', 'weightKg', 'goal'],
   ['activityLevel', 'sleepDuration', 'sleepQuality', 'bedtime'],
   ['mealsPerDay', 'dinnerToSleep', 'waterLiters', 'caffeine', 'smoking', 'emotionalEating'],
-  [], // symptoms are optional
+  [],
   ['medications', 'supplements'],
 ]
-
 function isStepComplete(form: Form, stepIdx: number): boolean {
-  return STEP_REQUIRED[stepIdx]!.every((k) => {
+  return (STEP_REQUIRED[stepIdx] ?? []).every((k) => {
     const v = form[k]
     return typeof v === 'string' ? v.trim() !== '' : true
   })
+}
+
+function Q({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', margin: '0 0 10px' }}>{label}</p>
+      {children}
+    </div>
+  )
 }
 
 export default function QuestionnairePage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
   const [step, setStep] = useState(0)
+  const [dir, setDir] = useState(1)
   const [form, setForm] = useState<Form>(INIT)
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const last = STEPS_META.length - 1
 
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
 
-  // Preload existing answers
   useEffect(() => {
     if (!getAccessToken()) return
     apiRequest<{ answers: Record<string, unknown> } | null>('/api/v1/questionnaire/my')
       .then((r) => {
         if (!r?.answers) return
         const a = r.answers
-        // Server stores numeric fields as numbers; the form keeps everything as strings.
         const stringFields: Exclude<keyof Form, 'symptoms'>[] = [
           'gender', 'dateOfBirth', 'heightCm', 'weightKg', 'waistCm', 'goal',
           'activityLevel', 'sleepDuration', 'sleepQuality', 'bedtime',
@@ -207,9 +116,7 @@ export default function QuestionnairePage() {
             const v = a[k]
             if (v != null) next[k] = String(v)
           }
-          if (Array.isArray(a['symptoms'])) {
-            next.symptoms = a['symptoms'].filter((s): s is string => typeof s === 'string')
-          }
+          if (Array.isArray(a['symptoms'])) next.symptoms = a['symptoms'].filter((s): s is string => typeof s === 'string')
           return next
         })
       })
@@ -220,10 +127,12 @@ export default function QuestionnairePage() {
     setForm((p) => ({ ...p, [k]: v }))
   }
   function toggleSymptom(v: string) {
-    setForm((p) => ({
-      ...p,
-      symptoms: p.symptoms.includes(v) ? p.symptoms.filter((s) => s !== v) : [...p.symptoms, v],
-    }))
+    setForm((p) => ({ ...p, symptoms: p.symptoms.includes(v) ? p.symptoms.filter((s) => s !== v) : [...p.symptoms, v] }))
+  }
+  function move(d: number) {
+    setDir(d)
+    setStep((s) => Math.min(last, Math.max(0, s + d)))
+    window.scrollTo(0, 0)
   }
 
   async function handleSubmit() {
@@ -262,313 +171,278 @@ export default function QuestionnairePage() {
     }
   }
 
-  const bg = 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)'
-
   if (submitted) {
     return (
-      <main className="min-h-screen" style={{ background: bg }}>
-        <Navbar transparent={false} variant="dark" />
-        <div className="mx-auto max-w-xl px-6 pt-32 pb-24 flex flex-col items-center justify-center min-h-screen text-center">
-          <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.55, ease }}>
-            <svg width="72" height="72" viewBox="0 0 72 72" fill="none" className="mx-auto mb-8" aria-hidden>
-              <circle cx="36" cy="36" r="34.5" stroke="rgba(255,230,146,0.55)" strokeWidth="1.2" />
-              <motion.path d="M23 37.5 32 46.5 50 27" stroke="#ffe692" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-                initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, delay: 0.3, ease }} />
+      <main style={{ position: 'relative', minHeight: '100vh' }}>
+        <AppBackground glow="40%" />
+        <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 1.5rem' }}>
+          <div className="pop-check" style={{ position: 'relative', marginBottom: 30 }}>
+            <Burst n={22} />
+            <svg width="84" height="84" viewBox="0 0 84 84" fill="none">
+              <circle cx="42" cy="42" r="40" stroke="rgba(255,230,146,0.5)" strokeWidth="1.3" />
+              <circle className="draw-ring" cx="42" cy="42" r="40" stroke="#ffe692" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+              <path className="draw-check" d="M26 43.5 37 54 59 31" stroke="#ffe692" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </svg>
-            <h1 className="font-display font-light text-white leading-tight mb-4" style={{ fontSize: 'clamp(2rem,5vw,3.5rem)' }}>
-              Анкета сохранена
-            </h1>
-            <p className="font-sans text-white/55 mb-10">Мы учтём ваши ответы при формировании рекомендаций.</p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/recommendations" className="btn-gold text-sm">Посмотреть рекомендации</Link>
-              <Link href="/dashboard" className="btn-outline-gold text-sm">В кабинет</Link>
-            </div>
-          </motion.div>
+          </div>
+          <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2rem,5vw,3.4rem)', color: '#fff', lineHeight: 1.1, margin: '0 0 1rem' }}>
+            Анкета сохранена
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.55)', margin: '0 0 2.5rem', maxWidth: 360 }}>Мы учтём ваши ответы при формировании персональных рекомендаций.</p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button variant="gold" onClick={() => router.push('/analyses/upload')}>
+              Загрузить анализы
+            </Button>
+            <Button variant="outline-gold" onClick={() => router.push('/dashboard')}>
+              В кабинет
+            </Button>
+          </div>
         </div>
       </main>
     )
   }
 
-  return (
-    <main className="min-h-screen" style={{ background: bg }}>
-      <Navbar transparent={false} variant="dark" />
+  const meta = STEPS_META[step]!
 
-      <div className="mx-auto max-w-xl px-5 sm:px-8 pt-28 pb-24">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }}>
-          <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-4">
-            Шаг {step + 1} из {STEPS.length} · {STEPS[step]}
-          </p>
-          <h1 className="font-display font-light text-white mb-6 leading-tight" style={{ fontSize: 'clamp(2rem, 5vw, 3.6rem)' }}>
-            Анкета
-          </h1>
-          {/* Progress */}
-          <div className="flex gap-1.5 mb-10 max-w-xs">
-            {STEPS.map((_, i) => (
-              <span key={i} className="h-[2px] flex-1 rounded-full transition-all duration-300"
-                style={{ background: i <= step ? 'rgba(255,230,146,0.75)' : 'rgba(255,255,255,0.1)' }} />
+  return (
+    <main style={{ position: 'relative', minHeight: '100vh' }}>
+      <AppBackground glow="14%" />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <AppNav onBack={() => (step === 0 ? router.push('/dashboard') : move(-1))} backLabel={step === 0 ? 'В кабинет' : 'Назад'} />
+        <div style={{ maxWidth: '38rem', margin: '0 auto', padding: 'clamp(2rem,5vw,3.5rem) clamp(1.25rem,5vw,2rem) 6rem' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 'clamp(2rem,5vw,3rem)' }}>
+            {STEPS_META.map((m, i) => (
+              <button key={m.label} onClick={() => i < step && (setDir(-1), setStep(i))} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: i < step ? 'pointer' : 'default', padding: 0 }}>
+                <div style={{ height: 3, borderRadius: 3, marginBottom: 8, transition: 'background .4s', background: i <= step ? 'linear-gradient(90deg,#d4a020,#ffe692)' : 'rgba(255,255,255,0.12)' }} />
+                <span className="q-step-label" style={{ fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: i <= step ? 'rgba(255,230,146,0.75)' : 'rgba(255,255,255,0.3)' }}>
+                  {m.label}
+                </span>
+              </button>
             ))}
           </div>
-        </motion.div>
 
-        {/* Steps */}
-        <AnimatePresence mode="wait">
-          {step === 0 && (
-            <motion.div key="s0" variants={slide} initial="initial" animate="animate" exit="exit">
-              <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-7">
-                <motion.div variants={row}>
-                  <Label>Пол *</Label>
-                  <Radio name="gender"
-                    options={[{ v: 'female', l: 'Женский' }, { v: 'male', l: 'Мужской' }]}
-                    value={form.gender} onChange={(v) => set('gender', v)} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Дата рождения *</Label>
-                  <input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)}
-                    className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]" />
-                </motion.div>
-                <motion.div variants={row} className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Рост (см) *</Label>
-                    <input type="number" min={100} max={250} placeholder="175"
-                      value={form.heightCm} onChange={(e) => set('heightCm', e.target.value)}
-                      className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]" />
-                  </div>
-                  <div>
-                    <Label>Вес (кг) *</Label>
-                    <input type="number" min={30} max={300} placeholder="70"
-                      value={form.weightKg} onChange={(e) => set('weightKg', e.target.value)}
-                      className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]" />
-                  </div>
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Обхват талии (см, необязательно)</Label>
-                  <input type="number" min={40} max={200} placeholder="80"
-                    value={form.waistCm} onChange={(e) => set('waistCm', e.target.value)}
-                    className="glass-input w-full px-4 py-3 text-[15px] rounded-[10px]" />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Главная цель *</Label>
-                  <Radio name="goal" value={form.goal} onChange={(v) => set('goal', v)}
-                    options={[
-                      { v: 'lose_weight', l: 'Снизить вес' },
-                      { v: 'maintain', l: 'Поддержать вес' },
-                      { v: 'gain', l: 'Набрать вес' },
-                      { v: 'energy_sleep', l: 'Улучшить энергию и сон' },
-                      { v: 'gut_health', l: 'Нормализовать ЖКТ' },
-                    ]} />
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          )}
+          <div key={step} className={dir > 0 ? 'slide-r' : 'slide-l'}>
+            <p className="eyebrow" style={{ marginBottom: 12 }}>
+              Шаг {step + 1} из {STEPS_META.length}
+            </p>
+            <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2rem,5vw,3rem)', color: '#fff', lineHeight: 1.08, margin: '0 0 8px' }}>
+              {meta.title}
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 15, margin: '0 0 2rem', lineHeight: 1.5 }}>{meta.sub}</p>
 
-          {step === 1 && (
-            <motion.div key="s1" variants={slide} initial="initial" animate="animate" exit="exit">
-              <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-7">
-                <motion.div variants={row}>
-                  <Label>Уровень физической активности</Label>
-                  <Radio name="activity" value={form.activityLevel} onChange={(v) => set('activityLevel', v)}
+            {step === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <Q label="Пол *">
+                  <RadioGroup value={form.gender} onChange={(v) => set('gender', v)} options={[{ value: 'female', label: 'Женский' }, { value: 'male', label: 'Мужской' }]} />
+                </Q>
+                <Field label="Дата рождения *">
+                  <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+                </Field>
+                <div className="q-base3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <Field label="Рост, см *">
+                    <Input type="number" placeholder="175" value={form.heightCm} onChange={(e) => set('heightCm', e.target.value)} />
+                  </Field>
+                  <Field label="Вес, кг *">
+                    <Input type="number" placeholder="70" value={form.weightKg} onChange={(e) => set('weightKg', e.target.value)} />
+                  </Field>
+                  <Field label="Талия, см">
+                    <Input type="number" placeholder="80" value={form.waistCm} onChange={(e) => set('waistCm', e.target.value)} />
+                  </Field>
+                </div>
+                <Q label="Главная цель *">
+                  <RadioGroup
+                    value={form.goal}
+                    onChange={(v) => set('goal', v)}
                     options={[
-                      { v: 'sedentary', l: 'Сидячий — офис без спорта' },
-                      { v: 'light', l: 'Лёгкий — 1-2 тренировки в неделю' },
-                      { v: 'moderate', l: 'Умеренный — 3-4 тренировки' },
-                      { v: 'high', l: 'Высокий — 5+ тренировок' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Длительность сна</Label>
-                  <Radio name="sleep_d" value={form.sleepDuration} onChange={(v) => set('sleepDuration', v)}
-                    options={[
-                      { v: 'lt6', l: 'Менее 6 часов' },
-                      { v: '6-7', l: '6–7 часов' },
-                      { v: '7-8', l: '7–8 часов' },
-                      { v: 'gt8', l: 'Более 8 часов' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Качество сна</Label>
-                  <Radio name="sleep_q" value={form.sleepQuality} onChange={(v) => set('sleepQuality', v)}
-                    options={[
-                      { v: 'excellent', l: 'Отличное — сплю без пробуждений' },
-                      { v: 'normal', l: 'Нормальное' },
-                      { v: 'interrupted', l: 'Прерывистое — просыпаюсь ночью' },
-                      { v: 'poor', l: 'Плохое — чувствую усталость с утра' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Время отхода ко сну</Label>
-                  <Radio name="bedtime" value={form.bedtime} onChange={(v) => set('bedtime', v)}
-                    options={[
-                      { v: 'before_23', l: 'До 23:00' },
-                      { v: '23-00', l: '23:00 – 00:00' },
-                      { v: 'after_00', l: 'После 00:00' },
-                    ]} />
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          )}
+                      { value: 'lose_weight', label: 'Снизить вес' },
+                      { value: 'maintain', label: 'Поддержать вес' },
+                      { value: 'gain', label: 'Набрать вес' },
+                      { value: 'energy_sleep', label: 'Улучшить энергию и сон' },
+                      { value: 'gut_health', label: 'Нормализовать ЖКТ' },
+                    ]}
+                  />
+                </Q>
+              </div>
+            )}
 
-          {step === 2 && (
-            <motion.div key="s2" variants={slide} initial="initial" animate="animate" exit="exit">
-              <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-7">
-                <motion.div variants={row}>
-                  <Label>Приёмов пищи в день</Label>
-                  <Radio name="meals" value={form.mealsPerDay} onChange={(v) => set('mealsPerDay', v)}
+            {step === 1 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <Q label="Физическая активность">
+                  <RadioGroup
+                    value={form.activityLevel}
+                    onChange={(v) => set('activityLevel', v)}
                     options={[
-                      { v: '1-2', l: '1–2 раза' },
-                      { v: '3', l: '3 раза' },
-                      { v: '4-5', l: '4–5 раз' },
-                      { v: 'gt5', l: 'Более 5 раз, постоянные перекусы' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Интервал между ужином и сном</Label>
-                  <Radio name="dinner" value={form.dinnerToSleep} onChange={(v) => set('dinnerToSleep', v)}
+                      { value: 'sedentary', label: 'Сидячий — офис без спорта' },
+                      { value: 'light', label: 'Лёгкий — 1–2 тренировки в неделю' },
+                      { value: 'moderate', label: 'Умеренный — 3–4 тренировки' },
+                      { value: 'high', label: 'Высокий — 5+ тренировок' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Длительность сна">
+                  <RadioGroup
+                    value={form.sleepDuration}
+                    onChange={(v) => set('sleepDuration', v)}
                     options={[
-                      { v: 'lt2h', l: 'Менее 2 часов' },
-                      { v: '2-3h', l: '2–3 часа' },
-                      { v: 'gt3h', l: 'Более 3 часов' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Вода в день</Label>
-                  <Radio name="water" value={form.waterLiters} onChange={(v) => set('waterLiters', v)}
+                      { value: 'lt6', label: 'Менее 6 часов' },
+                      { value: '6-7', label: '6–7 часов' },
+                      { value: '7-8', label: '7–8 часов' },
+                      { value: 'gt8', label: 'Более 8 часов' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Качество сна">
+                  <RadioGroup
+                    value={form.sleepQuality}
+                    onChange={(v) => set('sleepQuality', v)}
                     options={[
-                      { v: 'lt1.5', l: 'Менее 1,5 л' },
-                      { v: '1.5-2', l: '1,5–2 л' },
-                      { v: 'gt2', l: 'Более 2 л' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Кофе/чай в день</Label>
-                  <Radio name="caffeine" value={form.caffeine} onChange={(v) => set('caffeine', v)}
+                      { value: 'excellent', label: 'Отличное — сплю без пробуждений' },
+                      { value: 'normal', label: 'Нормальное' },
+                      { value: 'interrupted', label: 'Прерывистое — просыпаюсь ночью' },
+                      { value: 'poor', label: 'Плохое — чувствую усталость с утра' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Время отхода ко сну">
+                  <RadioGroup
+                    value={form.bedtime}
+                    onChange={(v) => set('bedtime', v)}
                     options={[
-                      { v: '0', l: 'Не пью' },
-                      { v: '1-2', l: '1–2 чашки' },
-                      { v: '3-4', l: '3–4 чашки' },
-                      { v: 'gt5', l: '5+ чашек' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row} className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Курение</Label>
-                    <Radio name="smoking" value={form.smoking} onChange={(v) => set('smoking', v)}
-                      options={[
-                        { v: 'no', l: 'Нет' },
-                        { v: 'quit', l: 'Бросил(а)' },
-                        { v: 'yes', l: 'Да' },
-                      ]} />
-                  </div>
-                  <div>
-                    <Label>Эмоциональное переедание</Label>
-                    <Radio name="eating" value={form.emotionalEating} onChange={(v) => set('emotionalEating', v)}
-                      options={[
-                        { v: 'never', l: 'Никогда' },
-                        { v: 'rarely', l: 'Редко' },
-                        { v: 'often', l: 'Часто' },
-                        { v: 'always', l: 'Постоянно' },
-                      ]} />
-                  </div>
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          )}
+                      { value: 'before_23', label: 'До 23:00' },
+                      { value: '23-00', label: '23:00 – 00:00' },
+                      { value: 'after_00', label: 'После 00:00' },
+                    ]}
+                  />
+                </Q>
+              </div>
+            )}
 
-          {step === 3 && (
-            <motion.div key="s3" variants={slide} initial="initial" animate="animate" exit="exit">
-              <motion.div variants={stagger} initial="initial" animate="animate">
-                <motion.p variants={row} className="font-sans text-[14px] text-white/55 mb-5">
-                  Отметьте всё, что актуально для вас прямо сейчас
-                </motion.p>
-                <motion.div variants={row}>
-                  <SymptomCheck opts={SYMPTOM_OPTS} values={form.symptoms} toggle={toggleSymptom} />
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          )}
+            {step === 2 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <Q label="Приёмов пищи в день">
+                  <RadioGroup
+                    value={form.mealsPerDay}
+                    onChange={(v) => set('mealsPerDay', v)}
+                    options={[
+                      { value: '1-2', label: '1–2 раза' },
+                      { value: '3', label: '3 раза' },
+                      { value: '4-5', label: '4–5 раз' },
+                      { value: 'gt5', label: 'Более 5 раз, постоянные перекусы' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Интервал между ужином и сном">
+                  <RadioGroup
+                    value={form.dinnerToSleep}
+                    onChange={(v) => set('dinnerToSleep', v)}
+                    options={[
+                      { value: 'lt2h', label: 'Менее 2 часов' },
+                      { value: '2-3h', label: '2–3 часа' },
+                      { value: 'gt3h', label: 'Более 3 часов' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Вода в день">
+                  <RadioGroup
+                    value={form.waterLiters}
+                    onChange={(v) => set('waterLiters', v)}
+                    options={[
+                      { value: 'lt1.5', label: 'Менее 1,5 л' },
+                      { value: '1.5-2', label: '1,5–2 л' },
+                      { value: 'gt2', label: 'Более 2 л' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Кофе/чай в день">
+                  <RadioGroup
+                    value={form.caffeine}
+                    onChange={(v) => set('caffeine', v)}
+                    options={[
+                      { value: '0', label: 'Не пью' },
+                      { value: '1-2', label: '1–2 чашки' },
+                      { value: '3-4', label: '3–4 чашки' },
+                      { value: 'gt5', label: '5+ чашек' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Курение">
+                  <RadioGroup value={form.smoking} onChange={(v) => set('smoking', v)} options={[{ value: 'no', label: 'Нет' }, { value: 'quit', label: 'Бросил(а)' }, { value: 'yes', label: 'Да' }]} />
+                </Q>
+                <Q label="Эмоциональное переедание">
+                  <RadioGroup
+                    value={form.emotionalEating}
+                    onChange={(v) => set('emotionalEating', v)}
+                    options={[
+                      { value: 'never', label: 'Никогда' },
+                      { value: 'rarely', label: 'Редко' },
+                      { value: 'often', label: 'Часто' },
+                      { value: 'always', label: 'Постоянно' },
+                    ]}
+                  />
+                </Q>
+              </div>
+            )}
 
-          {step === 4 && (
-            <motion.div key="s4" variants={slide} initial="initial" animate="animate" exit="exit">
-              <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-7">
-                <motion.div variants={row}>
-                  <Label>Постоянные лекарства</Label>
-                  <Radio name="meds" value={form.medications} onChange={(v) => set('medications', v)}
+            {step === 3 && <CheckboxRow values={form.symptoms} onToggle={toggleSymptom} options={SYMPTOM_OPTS} />}
+
+            {step === 4 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <Q label="Постоянные лекарства">
+                  <RadioGroup
+                    value={form.medications}
+                    onChange={(v) => set('medications', v)}
                     options={[
-                      { v: 'no', l: 'Не принимаю' },
-                      { v: 'hormones', l: 'Гормоны' },
-                      { v: 'blood_pressure', l: 'От давления' },
-                      { v: 'sugar', l: 'От сахара' },
-                      { v: 'other', l: 'Другие' },
-                    ]} />
-                </motion.div>
-                <motion.div variants={row}>
-                  <Label>Принимаете витамины / БАДы</Label>
-                  <Radio name="supps" value={form.supplements} onChange={(v) => set('supplements', v)}
-                    options={[
-                      { v: 'no', l: 'Нет' },
-                      { v: 'sometimes', l: 'Иногда' },
-                      { v: 'regular', l: 'Да, регулярно' },
-                    ]} />
-                </motion.div>
+                      { value: 'no', label: 'Не принимаю' },
+                      { value: 'hormones', label: 'Гормоны' },
+                      { value: 'blood_pressure', label: 'От давления' },
+                      { value: 'sugar', label: 'От сахара' },
+                      { value: 'other', label: 'Другие' },
+                    ]}
+                  />
+                </Q>
+                <Q label="Принимаете витамины / БАДы">
+                  <RadioGroup value={form.supplements} onChange={(v) => set('supplements', v)} options={[{ value: 'no', label: 'Нет' }, { value: 'sometimes', label: 'Иногда' }, { value: 'regular', label: 'Да, регулярно' }]} />
+                </Q>
                 {form.gender === 'female' && (
                   <>
-                    <motion.div variants={row}>
-                      <Label>Статус цикла</Label>
-                      <Radio name="cycle" value={form.cycleStatus} onChange={(v) => set('cycleStatus', v)}
+                    <Q label="Статус цикла">
+                      <RadioGroup
+                        value={form.cycleStatus}
+                        onChange={(v) => set('cycleStatus', v)}
                         options={[
-                          { v: 'regular', l: 'Регулярный' },
-                          { v: 'irregular', l: 'Нерегулярный' },
-                          { v: 'menopause', l: 'Менопауза' },
-                          { v: 'pregnancy', l: 'Беременность' },
-                        ]} />
-                    </motion.div>
-                    <motion.div variants={row}>
-                      <Label>Выраженность ПМС</Label>
-                      <Radio name="pms" value={form.pms} onChange={(v) => set('pms', v)}
-                        options={[
-                          { v: 'none', l: 'Нет ПМС' },
-                          { v: 'moderate', l: 'Умеренный' },
-                          { v: 'severe', l: 'Сильный' },
-                        ]} />
-                    </motion.div>
+                          { value: 'regular', label: 'Регулярный' },
+                          { value: 'irregular', label: 'Нерегулярный' },
+                          { value: 'menopause', label: 'Менопауза' },
+                          { value: 'pregnancy', label: 'Беременность' },
+                        ]}
+                      />
+                    </Q>
+                    <Q label="Выраженность ПМС">
+                      <RadioGroup value={form.pms} onChange={(v) => set('pms', v)} options={[{ value: 'none', label: 'Нет ПМС' }, { value: 'moderate', label: 'Умеренный' }, { value: 'severe', label: 'Сильный' }]} />
+                    </Q>
                   </>
                 )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </div>
+            )}
+          </div>
 
-        {error && (
-          <p className="mt-4 text-[13px] px-3 py-2.5 rounded-[10px]"
-            style={{ background: 'rgba(255,80,80,0.1)', color: '#ff9a9a', border: '1px solid rgba(255,80,80,0.18)' }}>
-            {error}
-          </p>
-        )}
+          {error && (
+            <p style={{ marginTop: 16, fontSize: 13, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,80,80,0.1)', color: '#ff9a9a', border: '1px solid rgba(255,80,80,0.18)' }}>{error}</p>
+          )}
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between gap-4 mt-10">
-          {step > 0 ? (
-            <button onClick={() => setStep((s) => s - 1)} className="btn-outline-gold text-sm px-7">Назад</button>
-          ) : (
-            <Link href="/dashboard" className="btn-outline-gold text-sm px-7">Отмена</Link>
-          )}
-          {step < STEPS.length - 1 ? (
-            <button
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!isStepComplete(form, step)}
-              className="btn-gold text-sm px-8 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Далее
-            </button>
-          ) : (
-            <button
-              onClick={() => void handleSubmit()}
-              disabled={saving || !isStepComplete(form, step)}
-              className="btn-gold text-sm px-8 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Сохранение…' : 'Сохранить анкету'}
-            </button>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 36 }}>
+            <Button variant="outline-gold" size="sm" onClick={() => (step === 0 ? router.push('/dashboard') : move(-1))}>
+              {step === 0 ? 'Отмена' : 'Назад'}
+            </Button>
+            {step < last ? (
+              <Button variant="gold" size="sm" disabled={!isStepComplete(form, step)} onClick={() => move(1)}>
+                Далее
+              </Button>
+            ) : (
+              <Button variant="gold" size="sm" disabled={saving || !isStepComplete(form, step)} onClick={() => void handleSubmit()}>
+                {saving ? 'Сохранение…' : 'Сохранить анкету'}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </main>

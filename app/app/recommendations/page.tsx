@@ -1,23 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, type Variants } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
-import { Navbar } from '@/components/Navbar'
-
-const ease: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
-
-const container: Variants = {
-  initial: {},
-  animate: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
-}
-const item: Variants = {
-  initial: { opacity: 0, y: 28 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.65, ease } },
-}
+import { AppBackground, AppNav, Reveal, ProgressRing } from '@/components/ds/AppCommon'
+import { Button } from '@/components/ds/primitives'
 
 type Signal = {
   category: string
@@ -26,170 +13,139 @@ type Signal = {
   severity: 'info' | 'warning' | 'critical'
   sources: string[]
 }
+type Recommendations = { signals: Signal[]; hasQuestionnaire: boolean; hasAnalyses: boolean }
 
-type RecommendationsResponse = {
-  signals: Signal[]
-  hasQuestionnaire: boolean
-  hasAnalyses: boolean
+const SEV: Record<Signal['severity'], { c: string; dot: string; l: string }> = {
+  info: { c: 'rgba(255,255,255,0.4)', dot: 'rgba(255,255,255,0.4)', l: 'Рекомендация' },
+  warning: { c: 'rgba(255,200,80,0.9)', dot: '#ffc850', l: 'Внимание' },
+  critical: { c: 'rgba(255,140,110,0.95)', dot: '#ff9a7a', l: 'Важно' },
 }
 
-const SEVERITY_COLOR: Record<Signal['severity'], string> = {
-  info: 'rgba(255,255,255,0.35)',
-  warning: 'rgba(255,200,80,0.85)',
-  critical: 'rgba(255,120,100,0.9)',
-}
-const SEVERITY_DOT: Record<Signal['severity'], string> = {
-  info: 'rgba(255,255,255,0.35)',
-  warning: '#ffe692',
-  critical: '#ff9a9a',
-}
-const SEVERITY_LABEL: Record<Signal['severity'], string> = {
-  info: 'Рекомендация',
-  warning: 'Внимание',
-  critical: 'Важно',
-}
+const BRAND = '/assets/brand/'
 
 export default function RecommendationsPage() {
   const router = useRouter()
-  const { user, isLoading: authLoading } = useAuth()
-  const [data, setData] = useState<RecommendationsResponse | null>(null)
+  const [data, setData] = useState<Recommendations | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
-  }, [authLoading, user, router])
-
-  useEffect(() => {
-    if (!getAccessToken()) return
-    apiRequest<RecommendationsResponse>('/api/v1/profile/recommendations')
+    if (!getAccessToken()) {
+      router.replace('/auth')
+      return
+    }
+    apiRequest<Recommendations>('/api/v1/profile/recommendations')
       .then(setData)
       .catch(() => setData({ signals: [], hasQuestionnaire: false, hasAnalyses: false }))
       .finally(() => setLoaded(true))
-  }, [])
+  }, [router])
 
-  const bg = 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)'
+  const signals = data?.signals ?? []
+  const ready = signals.length > 0
+  const criticalCount = signals.filter((s) => s.severity === 'critical').length
 
   return (
-    <main className="min-h-screen" style={{ background: bg }}>
-      <Navbar transparent={false} variant="dark" />
-
-      <div className="mx-auto max-w-4xl px-6 sm:px-10 lg:px-16 pt-32 pb-28">
-        <motion.div variants={container} initial="initial" animate="animate">
-
-          <motion.div variants={item} className="mb-14">
-            <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-5">
-              Персональный профиль
-            </p>
-            <h1 className="font-display font-light leading-[1.02] text-white" style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}>
-              Рекомендации
-            </h1>
-          </motion.div>
-
+    <main style={{ position: 'relative', minHeight: '100vh' }}>
+      <AppBackground glow="16%" />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <AppNav onBack={() => router.push('/dashboard')} backLabel="В кабинет" />
+        <div style={{ maxWidth: '46rem', margin: '0 auto', padding: 'clamp(2rem,5vw,3.5rem) clamp(1.25rem,5vw,3rem) 6rem' }}>
           {!loaded ? (
-            <motion.p variants={item} className="font-sans text-sm text-white/35">Загрузка…</motion.p>
-          ) : !data?.hasQuestionnaire && !data?.hasAnalyses ? (
-            /* Nothing yet */
-            <motion.div variants={item} className="glass-modal rounded-[20px] px-8 py-16 sm:px-14 sm:py-20 text-center">
-              <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/35 mb-6">Начните работу</p>
-              <h2 className="font-display font-light text-white mb-6 mx-auto max-w-lg leading-tight"
-                style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.8rem)' }}>
+            <p style={{ fontFamily: 'var(--font-sans)', color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>Загрузка…</p>
+          ) : !ready ? (
+            <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              <img src={`${BRAND}monogram.svg`} alt="" width={72} style={{ marginBottom: 24, opacity: 0.9 }} />
+              <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2rem,4vw,3rem)', color: '#fff', lineHeight: 1.1, margin: '0 auto 1.25rem', maxWidth: '24rem' }}>
                 Заполните анкету и загрузите анализы
-              </h2>
-              <p className="font-sans text-white/45 text-sm mb-10 max-w-md mx-auto">
+              </h1>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, margin: '0 auto 2.25rem', maxWidth: '26rem', lineHeight: 1.6 }}>
                 Алгоритм сформирует персональные рекомендации на основе ваших данных.
               </p>
-              <div className="flex flex-wrap gap-3 justify-center">
-                <Link href="/questionnaire" className="btn-gold text-sm">Заполнить анкету</Link>
-                <Link href="/analyses/upload" className="btn-outline-gold text-sm">Загрузить анализы</Link>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button variant="gold" size="md" onClick={() => router.push('/questionnaire')}>
+                  Заполнить анкету
+                </Button>
+                <Button variant="outline-gold" size="md" onClick={() => router.push('/analyses/upload')}>
+                  Загрузить анализы
+                </Button>
               </div>
-            </motion.div>
-          ) : data.signals.length === 0 ? (
-            /* Has data but no signals */
-            <motion.div variants={item}>
-              {!data.hasQuestionnaire && (
-                <div className="glass-card rounded-2xl px-6 py-8 mb-6 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-sans text-sm text-white/80 mb-1">Анкета не заполнена</p>
-                    <p className="font-sans text-[13px] text-white/45">Ответьте на вопросы — алгоритм учтёт образ жизни</p>
-                  </div>
-                  <Link href="/questionnaire" className="btn-gold text-xs shrink-0">Заполнить</Link>
-                </div>
-              )}
-              {!data.hasAnalyses && (
-                <div className="glass-card rounded-2xl px-6 py-8 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-sans text-sm text-white/80 mb-1">Анализы не загружены</p>
-                    <p className="font-sans text-[13px] text-white/45">Загрузите результаты для полного профиля</p>
-                  </div>
-                  <Link href="/analyses/upload" className="btn-gold text-xs shrink-0">Загрузить</Link>
-                </div>
-              )}
-              <p className="font-sans text-sm text-white/40 mt-8">
-                Рекомендации появятся после обработки анализов.
-              </p>
-            </motion.div>
+            </div>
           ) : (
             <>
-              {/* Hints if something is missing */}
-              {(!data.hasQuestionnaire || !data.hasAnalyses) && (
-                <motion.div variants={item} className="flex gap-3 flex-wrap mb-10">
-                  {!data.hasQuestionnaire && (
-                    <Link href="/questionnaire"
-                      className="inline-flex items-center gap-2 font-sans text-[13px] text-white/55 hover:text-[#ffe692] transition-colors">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffe692]/60" />
-                      Заполните анкету для уточнения рекомендаций
-                    </Link>
+              <Reveal style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap', marginBottom: 'clamp(2.5rem,5vw,3.5rem)' }}>
+                <ProgressRing value={100} size={92} stroke={6}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div className="font-display" style={{ fontSize: 24, color: '#fff', lineHeight: 1 }}>{signals.length}</div>
+                    <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>сигнал.</div>
+                  </div>
+                </ProgressRing>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <p className="eyebrow" style={{ marginBottom: 12 }}>Персональный профиль</p>
+                  <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2.2rem,5vw,3.4rem)', color: '#fff', lineHeight: 1.02, margin: 0 }}>
+                    Рекомендации
+                  </h1>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: '10px 0 0' }}>
+                    {signals.length} сигнал.{criticalCount > 0 ? ` · ${criticalCount} важн.` : ''} · по приоритету
+                  </p>
+                </div>
+              </Reveal>
+
+              {(!data?.hasQuestionnaire || !data?.hasAnalyses) && (
+                <Reveal style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 28 }}>
+                  {!data?.hasQuestionnaire && (
+                    <a onClick={() => router.push('/questionnaire')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,230,146,0.6)' }} />
+                      Заполните анкету для уточнения
+                    </a>
                   )}
-                  {!data.hasAnalyses && (
-                    <Link href="/analyses/upload"
-                      className="inline-flex items-center gap-2 font-sans text-[13px] text-white/55 hover:text-[#ffe692] transition-colors">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffe692]/60" />
+                  {!data?.hasAnalyses && (
+                    <a onClick={() => router.push('/analyses/upload')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,230,146,0.6)' }} />
                       Загрузите анализы для расширенного профиля
-                    </Link>
+                    </a>
                   )}
-                </motion.div>
+                </Reveal>
               )}
 
-              {/* Signals */}
-              <div className="border-t border-white/10">
-                {data.signals.map((sig, i) => (
-                  <motion.article key={`${sig.title}-${i}`} variants={item}
-                    className="border-b border-white/10 py-8 sm:py-10">
-                    <div className="flex items-start gap-5 sm:gap-8">
-                      <span
-                        className="font-display font-light leading-none select-none shrink-0 mt-1"
-                        style={{ fontSize: 'clamp(2rem,4vw,3rem)', color: 'rgba(255,255,255,0.05)' }}
-                        aria-hidden
-                      >
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2.5 mb-2">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-                            style={{ background: SEVERITY_DOT[sig.severity] }} />
-                          <span className="font-sans text-[11px] tracking-[0.2em] uppercase"
-                            style={{ color: SEVERITY_COLOR[sig.severity] }}>
-                            {sig.category} · {SEVERITY_LABEL[sig.severity]}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                {signals.map((sig, i) => {
+                  const s = SEV[sig.severity]
+                  return (
+                    <Reveal key={`${sig.title}-${i}`} delay={i * 70}>
+                      <article style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', padding: 'clamp(1.75rem,4vw,2.5rem) 0' }}>
+                        <div style={{ display: 'flex', gap: 'clamp(1rem,3vw,2rem)' }}>
+                          <span className="font-display" style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', color: 'rgba(255,230,146,0.13)', lineHeight: 1, marginTop: 2 }}>
+                            {String(i + 1).padStart(2, '0')}
                           </span>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot }} />
+                              <span style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: s.c }}>
+                                {sig.category} · {s.l}
+                              </span>
+                            </div>
+                            <h3 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(1.4rem,3vw,1.7rem)', color: '#fff', lineHeight: 1.15, margin: '0 0 12px' }}>
+                              {sig.title}
+                            </h3>
+                            <p style={{ fontSize: 15, lineHeight: 1.65, color: 'rgba(255,255,255,0.68)', margin: 0 }}>{sig.text}</p>
+                          </div>
                         </div>
-                        <h3 className="font-display font-light text-xl sm:text-2xl text-white mb-3 leading-tight">
-                          {sig.title}
-                        </h3>
-                        <p className="font-sans text-[15px] leading-relaxed text-white/70">{sig.text}</p>
-                      </div>
-                    </div>
-                  </motion.article>
-                ))}
+                      </article>
+                    </Reveal>
+                  )
+                })}
               </div>
 
-              <motion.p variants={item} className="font-sans text-[12px] text-white/25 mt-12 max-w-2xl">
-                Рекомендации носят информационный характер. Перед изменением режима питания
-                и приёма добавок проконсультируйтесь с врачом.
-              </motion.p>
+              <Reveal delay={120} style={{ marginTop: 40, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button variant="gold" onClick={() => router.push('/analyses/upload')}>
+                  Обновить анализы
+                </Button>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', maxWidth: '28rem', lineHeight: 1.6, margin: 0 }}>
+                  Рекомендации носят информационный характер. Перед изменением питания и приёмом добавок проконсультируйтесь с врачом.
+                </p>
+              </Reveal>
             </>
           )}
-
-        </motion.div>
+        </div>
       </div>
     </main>
   )

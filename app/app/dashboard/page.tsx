@@ -1,15 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, type Variants } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { Navbar } from '@/components/Navbar'
+import { AppBackground, AppNav, Reveal, ProgressRing, AnimatedNumber, Icon } from '@/components/ds/AppCommon'
+import { Button, StatusBadge } from '@/components/ds/primitives'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
-
 type AnalysisListItem = {
   id: number
   status: AnalysisStatus
@@ -18,32 +16,25 @@ type AnalysisListItem = {
   patientName: string | null
 }
 
-const ease: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94]
-
-const container: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
-}
-const item: Variants = {
-  hidden: { opacity: 0, y: 32 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease } },
-}
-
-const STATUS_LABEL: Record<AnalysisStatus, string> = {
-  pending: 'В очереди', processing: 'Обработка', done: 'Готово', failed: 'Ошибка',
-}
-
 function formatDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso))
-  } catch { return iso }
+  } catch {
+    return iso
+  }
 }
-
 function typeLabel(a: AnalysisListItem): string {
   const t = a.analysisTypes
   if (Array.isArray(t) && t.length > 0) return t.join(', ')
   if (typeof t === 'string' && t.trim().length > 0) return t
   return `Анализ #${a.id}`
+}
+function greeting(): string {
+  const h = new Date().getHours()
+  return h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+}
+function today(): string {
+  return new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
 }
 
 export default function DashboardPage() {
@@ -52,6 +43,7 @@ export default function DashboardPage() {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([])
   const [hasQuestionnaire, setHasQuestionnaire] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
@@ -66,139 +58,144 @@ export default function DashboardPage() {
     apiRequest<{ id: number } | null>('/api/v1/questionnaire/my')
       .then((q) => setHasQuestionnaire(!!q))
       .catch(() => setHasQuestionnaire(false))
+    apiRequest('/api/v1/admin/me')
+      .then(() => setIsAdmin(true))
+      .catch(() => setIsAdmin(false))
   }, [])
 
   const analysisCount = analyses.length
   const hasDone = analyses.some((a) => a.status === 'done')
   const firstName = user?.firstName ?? user?.email?.split('@')[0] ?? ''
+  const completeness = 20 + (hasQuestionnaire ? 40 : 0) + (analysisCount > 0 ? 40 : 0)
 
   const steps = [
-    {
-      n: '01', title: 'Анкета',
-      status: hasQuestionnaire ? 'Заполнена' : 'Не заполнена',
-      hasStatus: hasQuestionnaire,
-      cta: hasQuestionnaire ? 'Изменить' : 'Заполнить', href: '/questionnaire',
-    },
-    {
-      n: '02', title: 'Анализы',
-      status: analysisCount > 0 ? `${analysisCount} загружено` : 'Нет анализов',
-      hasStatus: analysisCount > 0,
-      cta: 'Загрузить', href: '/analyses/upload',
-    },
-    {
-      n: '03', title: 'Рекомендации',
-      status: hasDone ? 'Доступны' : 'Нужны анализы',
-      hasStatus: hasDone,
-      cta: 'Смотреть', href: '/recommendations',
-    },
+    { key: 'q', n: '01', icon: 'survey', title: 'Анкета', to: '/questionnaire', done: hasQuestionnaire, status: hasQuestionnaire ? 'Заполнена' : 'Не заполнена', cta: hasQuestionnaire ? 'Изменить' : 'Заполнить', nextLabel: 'Заполните анкету о здоровье' },
+    { key: 'a', n: '02', icon: 'lab', title: 'Анализы', to: '/analyses/upload', done: analysisCount > 0, status: analysisCount > 0 ? `${analysisCount} загружено` : 'Нет анализов', cta: 'Загрузить', nextLabel: 'Загрузите свои анализы' },
+    { key: 'r', n: '03', icon: 'insight', title: 'Рекомендации', to: '/recommendations', done: hasDone && hasQuestionnaire, status: hasDone ? 'Доступны' : 'Нужны данные', cta: 'Смотреть', nextLabel: 'Откройте рекомендации' },
   ]
+  const next = steps.find((s) => !s.done)
 
   return (
-    <main className="min-h-screen" style={{ background: 'linear-gradient(160deg, #35462f 0%, #4a6040 60%, #3d5435 100%)' }}>
-      <Navbar />
-
-      <div className="mx-auto max-w-4xl px-6 sm:px-10 lg:px-16 pt-32 pb-28">
-        <motion.div variants={container} initial="hidden" animate="visible">
-
-          {/* Greeting */}
-          <motion.div variants={item} className="mb-16 sm:mb-20">
-            <p className="font-sans text-[11px] tracking-[0.28em] uppercase text-white/40 mb-5">
-              Личный кабинет
-            </p>
-            <h1
-              className="font-display font-light leading-[1.02] text-white"
-              style={{ fontSize: 'clamp(2.4rem, 5vw, 4.5rem)' }}
-            >
-              Добро пожаловать,<br />{firstName}
-            </h1>
-          </motion.div>
-
-          {/* Journey steps */}
-          <div className="border-t border-white/10">
-            {steps.map((s) => (
-              <motion.div
-                key={s.n}
-                variants={item}
-                className="group flex items-center justify-between gap-4 border-b border-white/10 py-8 sm:py-10"
-              >
-                <div className="flex items-center gap-5 sm:gap-8 min-w-0">
-                  <span
-                    className="font-display font-light leading-none select-none shrink-0"
-                    style={{ fontSize: 'clamp(2.6rem, 7vw, 4.6rem)', color: 'rgba(255,255,255,0.06)' }}
-                    aria-hidden
-                  >
-                    {s.n}
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="font-display font-light text-2xl sm:text-3xl text-white leading-tight">
-                      {s.title}
-                    </h2>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      {s.hasStatus && (
-                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffe692]" />
-                      )}
-                      <span className="font-sans text-sm" style={{ color: s.hasStatus ? 'rgba(255,230,146,0.8)' : 'rgba(255,255,255,0.45)' }}>
-                        {s.status}
-                      </span>
-                    </div>
-                  </div>
+    <main style={{ position: 'relative', minHeight: '100vh' }}>
+      <AppBackground glow="20%" />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <AppNav completeness={completeness} userInitial={(firstName[0] ?? 'И').toUpperCase()} />
+        <div style={{ maxWidth: '60rem', margin: '0 auto', padding: 'clamp(2.5rem,6vw,4.5rem) clamp(1.25rem,5vw,3rem) 7rem' }}>
+          <Reveal style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginBottom: 'clamp(2.5rem,5vw,3.5rem)' }}>
+            <div>
+              <p className="eyebrow" style={{ marginBottom: 14 }}>
+                {greeting()} · {today()}
+              </p>
+              <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2.4rem,6vw,4rem)', color: '#fff', lineHeight: 1.0, margin: 0 }}>
+                {firstName || 'Профиль'}
+              </h1>
+            </div>
+            <ProgressRing value={completeness} size={104} stroke={6}>
+              <div style={{ textAlign: 'center' }}>
+                <div className="font-display" style={{ fontSize: 26, color: '#fff', lineHeight: 1 }}>
+                  <AnimatedNumber value={completeness} suffix="%" />
                 </div>
+                <div style={{ fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>профиль</div>
+              </div>
+            </ProgressRing>
+          </Reveal>
 
-                <Link
-                  href={s.href}
-                  className="shrink-0 font-sans text-[13px] tracking-[0.1em] uppercase text-white/55 inline-flex items-center gap-2 transition-all hover:text-[#ffe692]"
+          {next && (
+            <Reveal delay={60}>
+              <button
+                onClick={() => router.push(next.to)}
+                className="next-banner"
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 18, padding: '1.25rem 1.5rem', marginBottom: 32, borderRadius: 16, background: 'linear-gradient(100deg, rgba(255,230,146,0.14), rgba(255,230,146,0.05))', border: '1px solid rgba(255,230,146,0.28)' }}
+              >
+                <span style={{ display: 'grid', placeItems: 'center', width: 46, height: 46, borderRadius: 12, background: 'rgba(255,230,146,0.12)', flexShrink: 0 }}>
+                  <Icon name={next.icon} size={24} />
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', marginBottom: 3 }}>Следующий шаг</div>
+                  <div className="font-display" style={{ fontSize: 20, color: '#fff' }}>{next.nextLabel}</div>
+                </div>
+                <span className="next-arrow" style={{ color: 'var(--gold)', fontSize: 22 }}>→</span>
+              </button>
+            </Reveal>
+          )}
+
+          <div className="journey-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {steps.map((s, i) => (
+              <Reveal key={s.key} delay={120 + i * 80}>
+                <button
+                  onClick={() => router.push(s.to)}
+                  className="journey-card"
+                  style={{ width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, padding: '1.5rem', borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)' }}
                 >
-                  <span className="hidden sm:inline">{s.cta}</span>
-                  <span className="transition-transform group-hover:translate-x-1">→</span>
-                </Link>
-              </motion.div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ display: 'grid', placeItems: 'center', width: 48, height: 48, borderRadius: 13, background: s.done ? 'rgba(255,230,146,0.14)' : 'rgba(255,255,255,0.05)', border: `1px solid ${s.done ? 'rgba(255,230,146,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
+                      <Icon name={s.icon} size={26} color={s.done ? 'var(--gold)' : 'rgba(255,255,255,0.55)'} />
+                    </span>
+                    <span className="font-display" style={{ fontSize: 38, color: 'rgba(255,230,146,0.13)', lineHeight: 1 }}>{s.n}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-display" style={{ fontWeight: 500, fontSize: 24, color: '#fff', margin: '0 0 6px' }}>{s.title}</h3>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: s.done ? 'rgba(255,230,146,0.8)' : 'rgba(255,255,255,0.45)' }}>
+                      {s.done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)' }} />}
+                      {s.status}
+                    </span>
+                  </div>
+                  <span className="card-cta" style={{ marginTop: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>
+                    {s.cta} <span className="card-arrow">→</span>
+                  </span>
+                </button>
+              </Reveal>
             ))}
           </div>
 
-          {/* Recent analyses */}
-          <motion.section variants={item} className="mt-16 sm:mt-20">
-            <div className="flex items-baseline justify-between mb-6">
-              <h3 className="font-display font-light text-2xl text-white">Последние анализы</h3>
+          <Reveal delay={120} style={{ marginTop: 'clamp(3rem,6vw,4.5rem)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h2 className="font-display" style={{ fontWeight: 500, fontSize: 22, color: '#fff', margin: 0 }}>Последние анализы</h2>
               {analysisCount > 0 && (
-                <Link href="/analyses/upload" className="font-sans text-[12px] tracking-[0.08em] uppercase text-white/35 hover:text-[#ffe692] transition-colors">
-                  Все →
-                </Link>
+                <a onClick={() => router.push('/analyses/upload')} style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer' }}>
+                  Добавить
+                </a>
               )}
             </div>
-
             {!loaded ? (
-              <p className="font-sans text-sm text-white/35">Загрузка…</p>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>Загрузка…</p>
             ) : analysisCount === 0 ? (
-              <div className="glass-card rounded-2xl px-6 py-10 text-center flex flex-col items-center gap-5">
-                <p className="font-sans text-sm text-white/50 mb-1">Вы ещё не загрузили ни одного анализа</p>
-                <Link href="/analyses/upload" className="btn-gold text-sm">Загрузить анализ</Link>
+              <div style={{ borderRadius: 16, padding: '2.5rem 1.5rem', textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.14)' }}>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: '0 0 18px' }}>Вы ещё не загрузили ни одного анализа</p>
+                <Button variant="gold" size="sm" onClick={() => router.push('/analyses/upload')}>
+                  Загрузить анализ
+                </Button>
               </div>
             ) : (
-              <ul className="border-t border-white/10">
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 {analyses.slice(0, 3).map((a) => (
-                  <li key={a.id} className="border-b border-white/10">
-                    <Link
-                      href={`/analyses/${a.id}`}
-                      className="group flex items-center justify-between gap-4 py-4 transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-sans text-sm text-white truncate group-hover:text-[#ffe692] transition-colors">{typeLabel(a)}</p>
-                        <p className="font-sans text-xs text-white/40 mt-0.5">{formatDate(a.createdAt)}</p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="font-sans text-xs" style={{ color: a.status === 'done' ? 'rgba(255,230,146,0.8)' : a.status === 'failed' ? 'rgba(180,52,43,0.9)' : 'rgba(255,255,255,0.45)' }}>
-                          {STATUS_LABEL[a.status]}
+                  <li key={a.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <a onClick={() => router.push(`/analyses/${a.id}`)} className="analysis-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0.5rem', cursor: 'pointer', borderRadius: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <span style={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
+                          <Icon name="lab" size={20} color="rgba(255,255,255,0.6)" />
                         </span>
-                        <span className="text-white/30 transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+                        <div>
+                          <p style={{ color: '#fff', fontSize: 14, margin: 0 }}>{typeLabel(a)}</p>
+                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
+                        </div>
                       </div>
-                    </Link>
+                      <StatusBadge status={a.status} />
+                    </a>
                   </li>
                 ))}
               </ul>
             )}
-          </motion.section>
+          </Reveal>
 
-        </motion.div>
+          {isAdmin && (
+            <Reveal delay={160} style={{ marginTop: 32 }}>
+              <Button variant="outline-gold" size="sm" href="/admin">
+                Консоль нутрициолога →
+              </Button>
+            </Reveal>
+          )}
+        </div>
       </div>
     </main>
   )

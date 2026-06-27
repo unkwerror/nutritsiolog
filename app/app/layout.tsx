@@ -2,6 +2,15 @@ import type { Metadata, Viewport } from 'next'
 import { AuthProvider } from '@/lib/auth'
 // Self-hosted fonts — no build-time Google Fonts network requests
 import '@fontsource-variable/commissioner'
+// Playfair Display — the brand display voice (headlines + wordmark, italic accents)
+import '@fontsource/playfair-display/400.css'
+import '@fontsource/playfair-display/500.css'
+import '@fontsource/playfair-display/600.css'
+import '@fontsource/playfair-display/700.css'
+import '@fontsource/playfair-display/400-italic.css'
+import '@fontsource/playfair-display/500-italic.css'
+import '@fontsource/playfair-display/600-italic.css'
+// Cormorant Garamond — secondary serif
 import '@fontsource/cormorant-garamond/300.css'
 import '@fontsource/cormorant-garamond/400.css'
 import '@fontsource/cormorant-garamond/500.css'
