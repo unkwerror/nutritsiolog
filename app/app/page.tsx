@@ -104,7 +104,7 @@ function HeroNav() {
           ))}
         </span>
         <a className="hero-reg" href={START_HREF} style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 1.3rem', borderRadius: 75, border: '1.5px solid rgba(255,230,146,0.5)', color: '#ffe692', fontFamily: 'var(--font-sans)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
-          Регистрация
+          Войти
         </a>
         <button className="hero-burger" data-open={open} aria-label="Меню" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <span /> <span /> <span />
