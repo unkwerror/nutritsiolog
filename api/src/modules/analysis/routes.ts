@@ -35,6 +35,16 @@ const MarkerSchema = z.object({
     method: z.string().nullable(),
 })
 
+const MarkerAddSchema = z.object({
+    name: z.string().trim().min(1).max(255),
+    value: z.number().nullable().optional(),
+    unit: z.string().max(50).nullable().optional(),
+    section: z.string().max(100).nullable().optional(),
+    comment: z.string().nullable().optional(),
+    isOutOfRange: z.boolean().optional(),
+    outOfRangeDirection: z.enum(['low', 'high']).nullable().optional(),
+})
+
 const MarkerEditSchema = z.object({
     value: z.number().nullable().optional(),
     unit: z.string().nullable().optional(),
@@ -277,6 +287,35 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const analysis = await service.getAnalysis(numId, request.user.id)
 
             return reply.send(analysis)
+        }
+    )
+
+    fastify.post(
+        '/analysis/:analysisId/markers',
+        {
+            schema: {
+                tags: ['Analysis'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({
+                    analysisId: z.coerce.number().int().positive(),
+                }),
+                body: MarkerAddSchema,
+                response: { 201: MarkerSchema },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const service = new AnalysisService(
+                new AnalysisRepository(request.server.db),
+                storage,
+                queue
+            )
+            const created = await service.addMarker(
+                request.params.analysisId,
+                request.user.id,
+                request.body
+            )
+            return reply.code(201).send(created)
         }
     )
 

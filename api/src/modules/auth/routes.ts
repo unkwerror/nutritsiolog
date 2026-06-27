@@ -3,10 +3,15 @@ import { z } from 'zod'
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { redis } from '../../core/redis.js'
 import { config } from '../../core/config.js'
-import { UnauthorizedError } from '../../core/errors.js'
+import { UnauthorizedError, ConflictError, PG_UNIQUE_VIOLATION } from '../../core/errors.js'
 import { UsersRepository } from './repository.js'
 import { AuthService } from './service.js'
-import { RequestOtpSchema, VerifyOtpSchema, RegisterSchema } from './schemas.js'
+import {
+    RequestOtpSchema,
+    VerifyOtpSchema,
+    RegisterSchema,
+    UpdateProfileSchema,
+} from './schemas.js'
 
 const MeSchema = z.object({
     id: z.string(),
@@ -59,6 +64,38 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
         },
         async (request, reply) => {
             const repo = new UsersRepository(request.server.db)
+            const user = await repo.findByIdPublic(request.user.id)
+            if (!user) throw new UnauthorizedError('UNAUTHORIZED')
+            return reply.send(user)
+        }
+    )
+
+    fastify.patch(
+        '/users/me',
+        {
+            schema: {
+                tags: ['Users'],
+                security: [{ bearerAuth: [] }],
+                body: UpdateProfileSchema,
+                response: { 200: MeSchema },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const repo = new UsersRepository(request.server.db)
+            try {
+                await repo.updateProfile(request.user.id, request.body)
+            } catch (err) {
+                if (
+                    err &&
+                    typeof err === 'object' &&
+                    'code' in err &&
+                    err.code === PG_UNIQUE_VIOLATION
+                ) {
+                    throw new ConflictError('PHONE_TAKEN', 'Этот телефон уже используется')
+                }
+                throw err
+            }
             const user = await repo.findByIdPublic(request.user.id)
             if (!user) throw new UnauthorizedError('UNAUTHORIZED')
             return reply.send(user)
@@ -161,7 +198,11 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
             await redis.del(`refresh:${payload.jti}`)
 
-            const { accessToken, refreshToken: newRefreshToken, jti: newJti } = buildTokens(fastify, {
+            const {
+                accessToken,
+                refreshToken: newRefreshToken,
+                jti: newJti,
+            } = buildTokens(fastify, {
                 id: payload.id,
                 email: payload.email,
             })

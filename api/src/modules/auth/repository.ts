@@ -56,6 +56,23 @@ export class UsersRepository {
         return user ?? null
     }
 
+    async updateProfile(
+        id: string,
+        data: Partial<
+            Pick<
+                typeof users.$inferInsert,
+                'firstName' | 'lastName' | 'middleName' | 'gender' | 'dateOfBirth' | 'phone'
+            >
+        >
+    ) {
+        const [user] = await this.db
+            .update(users)
+            .set({ ...data, updatedAt: new Date() })
+            .where(eq(users.id, id))
+            .returning()
+        return user ?? null
+    }
+
     async setEmailVerified(id: string) {
         await this.db
             .update(users)

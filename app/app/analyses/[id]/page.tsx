@@ -334,6 +334,166 @@ function EditDrawer({ marker, form, saving, saveError, onChange, onSave, onClose
   )
 }
 
+// ─── Add Marker ───────────────────────────────────────────────────────────────
+
+type NewMarkerPayload = {
+  name: string
+  value: number | null
+  unit: string | null
+  section: string | null
+  comment: string | null
+  isOutOfRange: boolean
+}
+
+function AddMarkerPanel({ onAdd }: { onAdd: (p: NewMarkerPayload) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [value, setValue] = useState('')
+  const [unit, setUnit] = useState('')
+  const [comment, setComment] = useState('')
+  const [oor, setOor] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const canAdd = name.trim().length > 0 && !busy
+
+  function reset() {
+    setName('')
+    setValue('')
+    setUnit('')
+    setComment('')
+    setOor(false)
+    setErr(null)
+  }
+
+  async function submit() {
+    if (!canAdd) return
+    let numValue: number | null = null
+    const raw = value.trim()
+    if (raw !== '') {
+      const n = Number(raw.replace(',', '.'))
+      if (!Number.isFinite(n)) {
+        setErr('Значение должно быть числом')
+        return
+      }
+      numValue = n
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      await onAdd({
+        name: name.trim(),
+        value: numValue,
+        unit: unit.trim() || null,
+        section: null,
+        comment: comment.trim() || null,
+        isOutOfRange: oor,
+      })
+      reset()
+      setOpen(false)
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Не удалось добавить маркер')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[12.5px] font-medium transition"
+        style={{
+          color: '#ffe692',
+          borderColor: open ? '#ffe692' : 'rgba(255,230,146,0.5)',
+          background: open ? 'rgba(255,230,146,0.14)' : 'rgba(255,230,146,0.06)',
+        }}
+      >
+        <span className={`text-base leading-none transition-transform ${open ? 'rotate-45' : ''}`}>+</span>
+        {open ? 'Отмена' : 'Добавить маркер'}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <div
+              className="mt-3.5 rounded-2xl p-4"
+              style={{ border: '1px solid rgba(255,230,146,0.2)', background: 'rgba(255,230,146,0.05)' }}
+            >
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[1.4fr_1fr]">
+                <input
+                  className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                  placeholder="Маркер (напр. Магний)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <div className="flex gap-2.5">
+                  <input
+                    className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                    placeholder="Значение"
+                    inputMode="decimal"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                  />
+                  <input
+                    className="glass-input w-24 rounded-xl px-3.5 py-2.5 text-sm"
+                    placeholder="ед."
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                <div className="flex gap-1.5">
+                  {[
+                    { on: !oor, label: 'В норме', v: false },
+                    { on: oor, label: 'Отклонение', v: true },
+                  ].map((s) => (
+                    <button
+                      key={s.label}
+                      onClick={() => setOor(s.v)}
+                      className="rounded-full border px-3 py-1.5 text-[12.5px] transition"
+                      style={
+                        s.on
+                          ? { borderColor: '#ffe692', background: 'rgba(255,230,146,0.12)', color: '#ffe692' }
+                          : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)' }
+                      }
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="glass-input min-w-[140px] flex-1 rounded-xl px-3.5 py-2.5 text-sm"
+                  placeholder="Комментарий (необязательно)"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+                <button onClick={() => void submit()} disabled={!canAdd} className="btn-gold px-5 py-2.5 disabled:opacity-40">
+                  {busy ? 'Добавление…' : 'Добавить'}
+                </button>
+              </div>
+
+              {err && (
+                <p className="font-sans text-xs mt-3" style={{ color: 'rgba(248,113,113,0.9)' }}>
+                  {err}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type PageProps = { params: { id: string } }
@@ -439,6 +599,15 @@ export default function AnalysisDetailPage({ params }: PageProps) {
     }
   }
 
+  async function handleAddMarker(payload: NewMarkerPayload) {
+    if (!analysis) return
+    const created = await apiRequest<Marker>(`/api/v1/analysis/${analysis.id}/markers`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+    setAnalysis((prev) => (prev ? { ...prev, markers: [...prev.markers, created] } : prev))
+  }
+
   // Loading
   if (loading) {
     return (
@@ -538,6 +707,18 @@ export default function AnalysisDetailPage({ params }: PageProps) {
 
         {/* Divider */}
         <div className="border-t border-white/10 mb-8" />
+
+        {/* Markers header + add control */}
+        {(analysis.status === 'done' || analysis.markers.length > 0) && (
+          <div className="mb-7">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h2 className="font-sans text-[11px] tracking-[0.24em] uppercase text-white/40">
+                Показатели · {analysis.markers.length}
+              </h2>
+            </div>
+            <AddMarkerPanel onAdd={handleAddMarker} />
+          </div>
+        )}
 
         {/* Markers by section */}
         {groupedMarkers.length === 0 ? (

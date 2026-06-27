@@ -3,7 +3,12 @@ import { type StoragePort } from './infrastructure/storage.js'
 import { type QueuePort } from './infrastructure/queue.js'
 import { type AnalysisRepository } from './repository.js'
 import { AnalysisNotFoundError, NothingUploadedError } from './errors.js'
-import { NotFoundError, ValidationError } from '../../core/errors.js'
+import {
+    NotFoundError,
+    ValidationError,
+    ConflictError,
+    PG_UNIQUE_VIOLATION,
+} from '../../core/errors.js'
 
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
 
@@ -25,6 +30,16 @@ type MarkerEditInput = {
     referenceMax?: number | null
     name?: string
     comment?: string | null
+}
+
+type MarkerAddInput = {
+    name: string
+    value?: number | null
+    unit?: string | null
+    section?: string | null
+    comment?: string | null
+    isOutOfRange?: boolean
+    outOfRangeDirection?: 'low' | 'high' | null
 }
 
 export class AnalysisService {
@@ -84,6 +99,41 @@ export class AnalysisService {
         if (!analysis) throw new AnalysisNotFoundError()
         const analysisMarkers = await this.repo.findMarkersByAnalysisId(id)
         return { ...analysis, markers: analysisMarkers }
+    }
+
+    // Manually add a marker to a recognised analysis. isEdited=true marks it as
+    // user-supplied (not from OCR). isOutOfRange comes straight from the user here.
+    async addMarker(analysisId: number, userId: string, input: MarkerAddInput) {
+        const analysis = await this.repo.findByIdAndUser(analysisId, userId)
+        if (!analysis) throw new AnalysisNotFoundError()
+
+        const isOutOfRange = input.isOutOfRange ?? false
+        try {
+            const created = await this.repo.insertMarker({
+                analysisId,
+                name: input.name,
+                value:
+                    input.value !== undefined && input.value !== null ? String(input.value) : null,
+                unit: input.unit ?? null,
+                section: input.section ?? null,
+                comment: input.comment ?? null,
+                isOutOfRange,
+                outOfRangeDirection: isOutOfRange ? (input.outOfRangeDirection ?? null) : null,
+                isEdited: true,
+            })
+            if (!created) throw new Error('Insert returned no rows')
+            return created
+        } catch (err) {
+            if (
+                err &&
+                typeof err === 'object' &&
+                'code' in err &&
+                err.code === PG_UNIQUE_VIOLATION
+            ) {
+                throw new ConflictError('MARKER_EXISTS', 'Маркер с таким названием уже есть')
+            }
+            throw err
+        }
     }
 
     // Decision 030: update-in-place (not append-only).

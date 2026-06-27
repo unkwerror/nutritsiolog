@@ -227,11 +227,13 @@ export function AppNav({
             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{completeness}%</span>
           </div>
         )}
-        <span
-          style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,230,146,0.12)', border: '1px solid rgba(255,230,146,0.3)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, color: 'var(--gold)' }}
+        <Link
+          href="/profile"
+          aria-label="Профиль"
+          style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,230,146,0.12)', border: '1px solid rgba(255,230,146,0.3)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, color: 'var(--gold)', textDecoration: 'none' }}
         >
           {userInitial}
-        </span>
+        </Link>
       </div>
     </nav>
   )
