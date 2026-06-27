@@ -3,6 +3,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { QuestionnaireRepository } from './repository.js'
 import { QuestionnaireService } from './service.js'
 import { QuestionnaireAnswersSchema } from './schemas.js'
+import { UsersRepository } from '../auth/repository.js'
 
 const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.post(
@@ -23,7 +24,10 @@ const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
             preHandler: [fastify.authenticate],
         },
         async (request, reply) => {
-            const svc = new QuestionnaireService(new QuestionnaireRepository(request.server.db))
+            const svc = new QuestionnaireService(
+                new QuestionnaireRepository(request.server.db),
+                new UsersRepository(request.server.db)
+            )
             const result = await svc.submit(request.user.id, request.body)
             return reply.code(201).send({
                 id: result.id,
@@ -53,7 +57,10 @@ const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
             preHandler: [fastify.authenticate],
         },
         async (request, reply) => {
-            const svc = new QuestionnaireService(new QuestionnaireRepository(request.server.db))
+            const svc = new QuestionnaireService(
+                new QuestionnaireRepository(request.server.db),
+                new UsersRepository(request.server.db)
+            )
             const result = await svc.getMyLatest(request.user.id)
             return reply.send(
                 result

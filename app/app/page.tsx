@@ -193,10 +193,10 @@ function Hero({ start }: { start: boolean }) {
         <p className={`hero-eyebrow ${go}`} style={{ fontSize: 11, letterSpacing: '0.34em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)', margin: '0 0 30px' }}>
           Персональный нутрициологический профиль
         </p>
-        <h1 className="font-display" style={{ fontSize: 'clamp(2.7rem, 11vw, 11rem)', lineHeight: 0.95, margin: 0, color: '#fff', fontWeight: 500, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+        <h1 style={{ margin: 0 }}>
           <span className="line-mask">
-            <span className={`line-inner ${go}`} style={{ transitionDelay: '160ms' }}>
-              Нутри<span className="gold-word">циолог</span>
+            <span className={`line-inner headline-gold ${go}`} style={{ transitionDelay: '160ms' }}>
+              Нутрициолог
             </span>
           </span>
         </h1>

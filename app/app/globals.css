@@ -324,6 +324,21 @@
   animation: gold-shimmer 6s linear infinite;
 }
 
+/* Hero headline — whole word in one line, fully gold, responsive (no wrap) */
+.headline-gold {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  font-size: clamp(2.9rem, 8.6vw, 7rem);
+  background: linear-gradient(110deg, #9a6c08 0%, #d4a020 18%, #f5d060 34%, #fff4d5 50%, #f0c040 64%, #c88c18 82%, #ffd050 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: gold-shimmer 6s linear infinite;
+}
+
 /* Scroll cue line */
 .scroll-line { width: 1px; height: 46px; background: rgba(255,255,255,0.18); animation: scrollpulse 2.4s ease-in-out infinite; transform-origin: top }
 @keyframes scrollpulse { 0%,100% { transform: scaleY(0.55); opacity: .5 } 50% { transform: scaleY(1); opacity: 1 } }
@@ -452,6 +467,6 @@
   .reveal, .slide-sec, .slide-r, .slide-l, .step-fade, .fade-up, .marker-row, .page-enter, .pop-check,
   .line-inner, .hero-eyebrow { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important }
   .draw-ring, .draw-check { stroke-dashoffset: 0 !important; animation: none !important }
-  .app-tree-img, .app-ring, .app-glow, .mote, .l-mote, .app-sheen, .gold-word, .scroll-line { animation: none !important }
+  .app-tree-img, .app-ring, .app-glow, .mote, .l-mote, .app-sheen, .gold-word, .headline-gold, .scroll-line { animation: none !important }
   .mote, .l-mote, .app-sheen, .burst { display: none !important }
 }
