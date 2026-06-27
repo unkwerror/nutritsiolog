@@ -96,6 +96,19 @@ const SYMPTOMS: Record<string, string> = {
     joint_muscle_pain: 'Суставы/мышцы',
     cold_extremities: 'Зябкость',
 }
+// Типы анализа (detectedTypes) → читаемые названия
+const ANALYSIS_TYPES: Record<string, string> = {
+    cbc: 'Общий анализ крови',
+    biochemistry: 'Биохимия',
+    thyroid: 'Щитовидная железа',
+    hormones: 'Половые гормоны',
+    vitamins: 'Витамины и микроэлементы',
+    coagulation: 'Коагулограмма',
+    urinalysis: 'Общий анализ мочи',
+    lipid: 'Липидный профиль',
+    immunology: 'Иммунология',
+    other: 'Другое',
+}
 // Поля анкеты в порядке вывода: [ключ, подпись, единица?]
 const Q_FIELDS: [string, string, string?][] = [
     ['gender', 'Пол'],
@@ -322,7 +335,12 @@ export function buildProfilePdf(
             for (const a of data.analyses) {
                 ensure(40) // заголовок анализа + хотя бы одна строка маркера
                 doc.moveDown(0.4)
-                const head = [a.labName ?? 'Анализ', fmtDate(new Date(a.createdAt))].join('  ·  ')
+                const typeStr = (a.detectedTypes ?? [])
+                    .map((t) => ANALYSIS_TYPES[t] ?? t)
+                    .join(', ')
+                const head = [a.labName ?? 'Анализ', typeStr, fmtDate(new Date(a.createdAt))]
+                    .filter(Boolean)
+                    .join('  ·  ')
                 doc.font(FONT.sansBold)
                     .fontSize(8)
                     .fillColor(COLOR.sage)
