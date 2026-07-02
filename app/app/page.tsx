@@ -98,12 +98,12 @@ function HeroNav() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
         <span className="hero-navlinks" style={{ display: 'flex', gap: 28 }}>
           {links.map(([l, h]) => (
-            <a key={l} href={h} onClick={scrollTo(h)} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', textDecoration: 'none' }}>
+            <a key={l} href={h} onClick={scrollTo(h)} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', textDecoration: 'none', padding: '10px 2px' }}>
               {l}
             </a>
           ))}
         </span>
-        <a className="hero-reg" href={START_HREF} style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 1.3rem', borderRadius: 75, border: '1.5px solid rgba(255,230,146,0.5)', color: '#ffe692', fontFamily: 'var(--font-sans)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
+        <a className="hero-reg" href={START_HREF} style={{ display: 'inline-flex', alignItems: 'center', height: 40, padding: '0 1.3rem', borderRadius: 75, border: '1.5px solid rgba(255,230,146,0.5)', color: '#ffe692', fontFamily: 'var(--font-sans)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
           Войти · Начать
         </a>
         <button className="hero-burger" data-open={open} aria-label="Меню" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -293,7 +293,7 @@ function How() {
           <Button variant="gold" size="lg" href={START_HREF}>
             Начать анкетирование
           </Button>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', maxWidth: '18rem', lineHeight: 1.6, margin: 0 }}>Займёт 5–7 минут. Аккаунт создаётся автоматически по email.</p>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', maxWidth: '18rem', lineHeight: 1.6, margin: 0 }}>Займёт 5–7 минут. Аккаунт создаётся автоматически по email.</p>
         </Reveal>
       </div>
     </section>
@@ -320,7 +320,7 @@ function Benefits() {
               <GlassCard variant="card" style={{ padding: '1.9rem 1.6rem', borderRadius: 16, position: 'relative', overflow: 'hidden', height: '100%' }}>
                 <img src={`${BRAND}corner-flourish.svg`} alt="" aria-hidden="true" style={{ position: 'absolute', top: 0, right: 0, width: 64, opacity: 0.4, transform: 'scaleX(-1)' }} />
                 <p className="font-display" style={{ fontSize: 'clamp(1.6rem,2.2vw,2.1rem)', color: '#fff', lineHeight: 1.1, margin: '0 0 0.6rem', fontWeight: 500 }}>{b.title}</p>
-                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.52)', lineHeight: 1.6, margin: 0 }}>{b.desc}</p>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.6, margin: 0 }}>{b.desc}</p>
               </GlassCard>
             </Reveal>
           ))}
@@ -356,7 +356,7 @@ function Cta() {
           <Button variant="gold" size="lg" href={START_HREF}>
             Попробовать бесплатно
           </Button>
-          <p style={{ color: 'rgba(255,255,255,0.22)', fontSize: 12, marginTop: '2.5rem' }}>Данные хранятся на российских серверах · Политика конфиденциальности</p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, marginTop: '2.5rem' }}>Данные хранятся на российских серверах · Политика конфиденциальности</p>
         </Reveal>
       </div>
     </section>

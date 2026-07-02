@@ -1,0 +1,24 @@
+<svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="sg" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#fff4d5"></stop>
+      <stop offset="0.5" stop-color="#ffe692"></stop>
+      <stop offset="1" stop-color="#c88c18"></stop>
+    </linearGradient>
+  </defs>
+  <!-- outer ring: faint full circle + brighter arc -->
+  <circle cx="48" cy="48" r="44" stroke="#ffe692" stroke-opacity="0.22" stroke-width="1"></circle>
+  <circle cx="48" cy="48" r="44" stroke="url(#sg)" stroke-opacity="0.85" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="72 205" transform="rotate(-58 48 48)"></circle>
+  <!-- soil line -->
+  <path d="M34 66 H62" stroke="#ffe692" stroke-opacity="0.4" stroke-width="1.1" stroke-linecap="round"></path>
+  <!-- stem -->
+  <path d="M48 66 C48 58 48 50 48 41" stroke="url(#sg)" stroke-width="1.5" stroke-linecap="round"></path>
+  <!-- left leaf -->
+  <path d="M48 52 C43 51 37.5 47 36 39.5 C43.5 40.5 47.5 45 48 51.5 Z" stroke="url(#sg)" stroke-width="1.3" stroke-linejoin="round"></path>
+  <path d="M47 50 C44 47.5 41.5 45 39.5 42" stroke="#ffe692" stroke-opacity="0.55" stroke-width="0.9" stroke-linecap="round"></path>
+  <!-- right leaf -->
+  <path d="M48 45 C53 44 58.5 40 60 32.5 C52.5 33.5 48.5 38 48 44.5 Z" stroke="url(#sg)" stroke-width="1.3" stroke-linejoin="round"></path>
+  <path d="M49 43 C52 40.5 54.5 38 56.5 35" stroke="#ffe692" stroke-opacity="0.55" stroke-width="0.9" stroke-linecap="round"></path>
+  <!-- bud sparkle -->
+  <path d="M48 34 C48 36.4 46.9 37.3 45 38 C46.9 38.7 48 39.6 48 42 C48 39.6 49.1 38.7 51 38 C49.1 37.3 48 36.4 48 34 Z" stroke="#ffe692" stroke-opacity="0.9" stroke-width="1"></path>
+</svg>

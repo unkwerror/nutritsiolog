@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { analyses, markers } from '../../db/schema.js'
 
@@ -29,22 +29,33 @@ type NewMarker = {
     outOfRangeDirection?: 'low' | 'high' | null
     isEdited?: boolean
     originalValue?: string | null
+    revision?: number
     comment?: string | null
     method?: string | null
 }
 
-type MarkerUpdate = Partial<{
-    name: string
-    value: string | null
-    unit: string | null
-    referenceMin: string | null
-    referenceMax: string | null
-    comment: string | null
-    isOutOfRange: boolean
-    outOfRangeDirection: 'low' | 'high' | null
-    isEdited: boolean
-    originalValue: string | null
-}>
+// Явный список колонок для данных, уходящих клиенту (стандарт: не select() без полей)
+const markerColumns = {
+    id: markers.id,
+    analysisId: markers.analysisId,
+    name: markers.name,
+    code: markers.code,
+    section: markers.section,
+    value: markers.value,
+    unit: markers.unit,
+    referenceMin: markers.referenceMin,
+    referenceMax: markers.referenceMax,
+    referenceRaw: markers.referenceRaw,
+    isOutOfRange: markers.isOutOfRange,
+    outOfRangeDirection: markers.outOfRangeDirection,
+    isEdited: markers.isEdited,
+    originalValue: markers.originalValue,
+    revision: markers.revision,
+    isCurrent: markers.isCurrent,
+    comment: markers.comment,
+    method: markers.method,
+    createdAt: markers.createdAt,
+} as const
 
 export class AnalysisRepository {
     constructor(private db: DB) {}
@@ -90,25 +101,34 @@ export class AnalysisRepository {
         return analysis ?? null
     }
 
-    // Returns latest version of each (name, method) pair — safety net for legacy append-only data.
-    // With update-in-place (decision 030) each marker has exactly one row, so dedup is a no-op.
+    // Append-only (034/039): each edit is a new row; only is_current=true rows are
+    // the latest revision of each (name, method) pair — старые ревизии не отдаём.
     async findMarkersByAnalysisId(analysisId: number) {
-        const all = await this.db
-            .select()
+        return this.db
+            .select(markerColumns)
             .from(markers)
-            .where(eq(markers.analysisId, analysisId))
-            .orderBy(desc(markers.id))
+            .where(and(eq(markers.analysisId, analysisId), eq(markers.isCurrent, true)))
+            .orderBy(markers.id)
+    }
 
-        const seen = new Set<string>()
-        const latest: typeof all = []
-        for (const m of all) {
-            const key = `${m.name}|${m.method ?? ''}`
-            if (!seen.has(key)) {
-                seen.add(key)
-                latest.push(m)
-            }
+    // Батч-загрузка маркеров для набора анализов одним запросом (fix N+1 в админке).
+    async findMarkersByAnalysisIds(analysisIds: number[]) {
+        type MarkerRow = Awaited<ReturnType<AnalysisRepository['findMarkersByAnalysisId']>>[number]
+        const grouped = new Map<number, MarkerRow[]>()
+        if (analysisIds.length === 0) return grouped
+
+        const rows = await this.db
+            .select(markerColumns)
+            .from(markers)
+            .where(and(inArray(markers.analysisId, analysisIds), eq(markers.isCurrent, true)))
+            .orderBy(markers.id)
+
+        for (const row of rows) {
+            const list = grouped.get(row.analysisId)
+            if (list) list.push(row)
+            else grouped.set(row.analysisId, [row])
         }
-        return latest.reverse()
+        return grouped
     }
 
     async findMarkerWithOwner(markerId: number, userId: string) {
@@ -121,16 +141,21 @@ export class AnalysisRepository {
     }
 
     async insertMarker(data: NewMarker) {
-        const [inserted] = await this.db.insert(markers).values(data).returning()
+        const [inserted] = await this.db.insert(markers).values(data).returning(markerColumns)
         return inserted ?? null
     }
 
-    async updateMarker(markerId: number, data: MarkerUpdate) {
-        const [updated] = await this.db
-            .update(markers)
-            .set(data)
-            .where(eq(markers.id, markerId))
-            .returning()
-        return updated ?? null
+    // Append-only правка (034/039): в одной транзакции снимаем флаг «текущая»
+    // со старой ревизии (данные не меняем) и вставляем новую строку-ревизию.
+    // При unique violation транзакция откатывается — старая ревизия остаётся текущей.
+    async insertMarkerRevision(previousMarkerId: number, data: NewMarker) {
+        return this.db.transaction(async (tx) => {
+            await tx
+                .update(markers)
+                .set({ isCurrent: false })
+                .where(eq(markers.id, previousMarkerId))
+            const [inserted] = await tx.insert(markers).values(data).returning(markerColumns)
+            return inserted ?? null
+        })
     }
 }

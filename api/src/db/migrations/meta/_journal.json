@@ -50,6 +50,20 @@
       "when": 1782400000000,
       "tag": "0006_questionnaire",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0007_markers_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0008_marker_catalog_and_profiles",
+      "breakpoints": true
     }
   ]
 }

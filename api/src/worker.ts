@@ -13,6 +13,10 @@ import { db } from './db/client.js'
 import { redis } from './core/redis.js'
 import { config } from './core/config.js'
 import logger from './core/logger.js'
+import { matchCatalogKey } from './modules/profile/matcher.js'
+import { ProfileRepository } from './modules/profile/repository.js'
+
+const profileRepo = new ProfileRepository(db)
 
 type AnalysisType = (typeof analysisTypeEnum.enumValues)[number]
 
@@ -101,27 +105,37 @@ const worker = new Worker<AnalysisJobData>(
                 ),
             ]
 
+            // Решение 032: маппинг маркеров на собственный справочник (catalog_id)
+            const catalogKeyToId = await profileRepo.loadCatalogKeyToId()
+
             await db.transaction(async (tx) => {
                 // onConflictDoNothing: при retry после сбоя между commit и publish
                 // повторная вставка не падает на уникальном индексе (analysis_id, name, method)
                 await tx.insert(markers).values(
-                    uniqueMarkers.map((marker) => ({
-                        analysisId,
-                        name: marker.name,
-                        code: marker.code,
-                        section: marker.section,
-                        value: marker.value !== null ? String(marker.value) : null,
-                        unit: marker.unit,
-                        referenceMin:
-                            marker.referenceMin !== null ? String(marker.referenceMin) : null,
-                        referenceMax:
-                            marker.referenceMax !== null ? String(marker.referenceMax) : null,
-                        referenceRaw: marker.referenceRaw,
-                        isOutOfRange: marker.isOutOfRange,
-                        outOfRangeDirection: marker.outOfRangeDirection,
-                        comment: marker.comment,
-                        method: marker.method,
-                    }))
+                    uniqueMarkers.map((marker) => {
+                        const catalogKey = matchCatalogKey(marker.name, marker.code)
+                        const catalogId = catalogKey
+                            ? (catalogKeyToId.get(catalogKey) ?? null)
+                            : null
+                        return {
+                            analysisId,
+                            name: marker.name,
+                            code: marker.code,
+                            section: marker.section,
+                            value: marker.value !== null ? String(marker.value) : null,
+                            unit: marker.unit,
+                            referenceMin:
+                                marker.referenceMin !== null ? String(marker.referenceMin) : null,
+                            referenceMax:
+                                marker.referenceMax !== null ? String(marker.referenceMax) : null,
+                            referenceRaw: marker.referenceRaw,
+                            isOutOfRange: marker.isOutOfRange,
+                            outOfRangeDirection: marker.outOfRangeDirection,
+                            comment: marker.comment,
+                            method: marker.method,
+                            catalogId,
+                        }
+                    })
                 ).onConflictDoNothing()
 
                 await tx

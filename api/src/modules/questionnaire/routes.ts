@@ -4,6 +4,7 @@ import { QuestionnaireRepository } from './repository.js'
 import { QuestionnaireService } from './service.js'
 import { QuestionnaireAnswersSchema } from './schemas.js'
 import { UsersRepository } from '../auth/repository.js'
+import { ProfileService } from '../profile/service.js'
 
 const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.post(
@@ -29,6 +30,18 @@ const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 new UsersRepository(request.server.db)
             )
             const result = await svc.submit(request.user.id, request.body)
+
+            // Триггер расчёта профиля (решение 033). Сбой персиста не должен
+            // ронять сохранение анкеты — ловим и логируем.
+            try {
+                await ProfileService.fromDb(request.server.db).calculateAndPersist(
+                    request.user.id,
+                    'questionnaire'
+                )
+            } catch (err) {
+                request.log.warn({ err }, 'profile recalculation after questionnaire failed')
+            }
+
             return reply.code(201).send({
                 id: result.id,
                 tags: result.tags as string[],

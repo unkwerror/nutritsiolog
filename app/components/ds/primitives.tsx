@@ -5,6 +5,10 @@
 // vars, no Tailwind). Consumed by the app screens.
 
 import { createElement, type CSSProperties, type ReactNode, type HTMLAttributes } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
+
+// Signature ease for all micro-interactions (matches the app screens).
+export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
 // ── Button ───────────────────────────────────────────────────────────────────
 
@@ -15,10 +19,11 @@ type ButtonProps = {
   href?: string
   disabled?: boolean
   type?: 'button' | 'submit'
-} & HTMLAttributes<HTMLElement>
+} & Omit<HTMLAttributes<HTMLElement>, 'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd' | 'onAnimationIteration'>
 
 const BTN_SIZES: Record<'sm' | 'md' | 'lg', CSSProperties> = {
-  sm: { minHeight: 40, padding: '0 1.25rem', fontSize: '0.875rem' },
+  // 44px min — комфортная зона нажатия (аудитория 45+, mobile-first)
+  sm: { minHeight: 44, padding: '0 1.25rem', fontSize: '0.875rem' },
   md: { minHeight: 52, padding: '0 2rem', fontSize: '0.9375rem' },
   lg: { minHeight: 56, padding: '0 2.25rem', fontSize: '1.0625rem' },
 }
@@ -39,6 +44,7 @@ export function Button({
   style = {},
   ...rest
 }: ButtonProps) {
+  const reduce = useReducedMotion()
   const finalStyle: CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -46,7 +52,7 @@ export function Button({
     fontFamily: 'var(--font-sans)',
     borderRadius: 'var(--radius-pill)',
     cursor: disabled ? 'not-allowed' : 'pointer',
-    transition: 'transform .14s ease, opacity .14s ease, border-color .14s, background .14s',
+    transition: 'opacity .14s ease, border-color .14s, background .14s',
     textDecoration: 'none',
     whiteSpace: 'nowrap',
     opacity: disabled ? 0.4 : 1,
@@ -55,17 +61,21 @@ export function Button({
     ...BTN_VARIANTS[variant],
     ...style,
   }
+  // Тактильный отклик: лёгкий подъём на hover + сжатие на нажатии.
+  const hoverFx = reduce || disabled ? undefined : { y: -1.5 }
+  const tapFx = reduce || disabled ? undefined : { scale: 0.97 }
+  const motionFx = { whileHover: hoverFx, whileTap: tapFx, transition: { duration: 0.18, ease: EASE_OUT } }
   if (href && !disabled) {
     return (
-      <a href={href} className={className} style={finalStyle} {...rest}>
+      <motion.a href={href} className={className} style={finalStyle} {...motionFx} {...rest}>
         {children}
-      </a>
+      </motion.a>
     )
   }
   return (
-    <button type={type} className={className} style={finalStyle} disabled={disabled} {...rest}>
+    <motion.button type={type} className={className} style={finalStyle} disabled={disabled} {...motionFx} {...rest}>
       {children}
-    </button>
+    </motion.button>
   )
 }
 
@@ -103,7 +113,7 @@ export function Field({ label, children, hint }: { label?: ReactNode; children: 
       )}
       {children}
       {hint && (
-        <span style={{ fontSize: '0.75rem', color: 'var(--ink-muted)', fontFamily: 'var(--font-sans)' }}>{hint}</span>
+        <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.55)', fontFamily: 'var(--font-sans)' }}>{hint}</span>
       )}
     </div>
   )
@@ -112,19 +122,28 @@ export function Field({ label, children, hint }: { label?: ReactNode; children: 
 // ── RadioGroup / CheckboxRow ──────────────────────────────────────────────────
 
 type Option = { value: string; label: ReactNode }
+type OptionSize = 'md' | 'lg'
 
-const OPTION_BTN = (on: boolean): CSSProperties => ({
+const OPTION_BTN = (on: boolean, size: OptionSize): CSSProperties => ({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.75rem',
+  gap: size === 'lg' ? '0.875rem' : '0.75rem',
   borderRadius: 'var(--radius-sm)',
-  padding: '0.75rem 1rem',
+  padding: size === 'lg' ? '0.9375rem 1.125rem' : '0.75rem 1rem',
+  minHeight: size === 'lg' ? 56 : 44, // ≥44px — комфортная зона нажатия
   textAlign: 'left',
   cursor: 'pointer',
-  transition: 'all .15s',
+  transition: 'border-color .15s, background .15s',
   border: on ? '1.5px solid rgba(255,230,146,0.65)' : '1.5px solid rgba(255,255,255,0.1)',
   background: on ? 'rgba(255,230,146,0.05)' : 'rgba(255,255,255,0.025)',
   width: '100%',
+})
+
+const OPTION_LABEL = (size: OptionSize): CSSProperties => ({
+  fontFamily: 'var(--font-sans)',
+  fontSize: size === 'lg' ? '0.9375rem' : '0.875rem',
+  lineHeight: 1.4,
+  color: 'rgba(255,255,255,0.92)',
 })
 
 export function RadioGroup({
@@ -132,23 +151,36 @@ export function RadioGroup({
   value,
   onChange = () => {},
   name,
+  size = 'md',
 }: {
   options: Option[]
   value?: string
   onChange?: (v: string) => void
   name?: string
+  size?: OptionSize
 }) {
+  const reduce = useReducedMotion()
+  const ctrl = size === 'lg' ? 18 : 16
   return (
     <div style={{ display: 'grid', gap: '0.5rem' }} role="radiogroup">
       {options.map((o) => {
         const on = value === o.value
         return (
-          <button key={o.value} type="button" name={name} onClick={() => onChange(o.value)} aria-pressed={on} style={OPTION_BTN(on)}>
+          <motion.button
+            key={o.value}
+            type="button"
+            name={name}
+            onClick={() => onChange(o.value)}
+            aria-pressed={on}
+            style={OPTION_BTN(on, size)}
+            whileTap={reduce ? undefined : { scale: 0.985 }}
+            transition={{ duration: 0.15, ease: EASE_OUT }}
+          >
             <span
               style={{
                 display: 'inline-flex',
-                height: 16,
-                width: 16,
+                height: ctrl,
+                width: ctrl,
                 flexShrink: 0,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -156,10 +188,10 @@ export function RadioGroup({
                 border: `1px solid ${on ? 'var(--gold)' : 'rgba(255,255,255,0.28)'}`,
               }}
             >
-              {on && <span style={{ height: 8, width: 8, borderRadius: '50%', background: 'var(--gold)' }} />}
+              {on && <span style={{ height: ctrl / 2, width: ctrl / 2, borderRadius: '50%', background: 'var(--gold)' }} />}
             </span>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'rgba(255,255,255,0.9)' }}>{o.label}</span>
-          </button>
+            <span style={OPTION_LABEL(size)}>{o.label}</span>
+          </motion.button>
         )
       })}
     </div>
@@ -170,22 +202,34 @@ export function CheckboxRow({
   options = [],
   values = [],
   onToggle = () => {},
+  size = 'md',
 }: {
   options: Option[]
   values?: string[]
   onToggle?: (v: string) => void
+  size?: OptionSize
 }) {
+  const reduce = useReducedMotion()
+  const ctrl = size === 'lg' ? 18 : 16
   return (
     <div style={{ display: 'grid', gap: '0.5rem' }}>
       {options.map((o) => {
         const on = values.includes(o.value)
         return (
-          <button key={o.value} type="button" onClick={() => onToggle(o.value)} aria-pressed={on} style={OPTION_BTN(on)}>
+          <motion.button
+            key={o.value}
+            type="button"
+            onClick={() => onToggle(o.value)}
+            aria-pressed={on}
+            style={OPTION_BTN(on, size)}
+            whileTap={reduce ? undefined : { scale: 0.985 }}
+            transition={{ duration: 0.15, ease: EASE_OUT }}
+          >
             <span
               style={{
                 display: 'inline-flex',
-                height: 16,
-                width: 16,
+                height: ctrl,
+                width: ctrl,
                 flexShrink: 0,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -196,13 +240,13 @@ export function CheckboxRow({
               }}
             >
               {on && (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <svg width={ctrl - 6} height={ctrl - 6} viewBox="0 0 12 12" fill="none" aria-hidden="true">
                   <path d="M2.5 6.2 5 8.5l4.5-5" stroke="#35462f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </span>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'rgba(255,255,255,0.9)' }}>{o.label}</span>
-          </button>
+            <span style={OPTION_LABEL(size)}>{o.label}</span>
+          </motion.button>
         )
       })}
     </div>
@@ -349,5 +393,37 @@ export function ProgressSteps({ total = 3, current = 0, style = {} }: { total?: 
         />
       ))}
     </div>
+  )
+}
+
+// ── FadeUp — staggered mount reveal (framer-motion) ──────────────────────────
+// Спокойное появление блока при монтировании: opacity 0 + y 12 → 0.
+// Уважает prefers-reduced-motion (без сдвига, только fade). Задержка
+// ограничена 0.35s, чтобы каскад не растягивался.
+
+export function FadeUp({
+  children,
+  delay = 0,
+  y = 12,
+  style = {},
+  className = '',
+}: {
+  children: ReactNode
+  delay?: number
+  y?: number
+  style?: CSSProperties
+  className?: string
+}) {
+  const reduce = useReducedMotion()
+  return (
+    <motion.div
+      className={className}
+      style={style}
+      initial={{ opacity: 0, y: reduce ? 0 : y }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: EASE_OUT, delay: Math.min(delay, 0.35) }}
+    >
+      {children}
+    </motion.div>
   )
 }

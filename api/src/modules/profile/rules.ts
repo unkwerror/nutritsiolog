@@ -1,7 +1,19 @@
+import { matchCatalogKey, evaluateMarker, type Evaluation } from './matcher.js'
+import { SECTION_TITLES } from './optimums.js'
+
+export type SignalFoods = { add?: string[]; avoid?: string[] }
+
 export type Signal = {
+    id: string
     category: string
+    // Ключ группы для фильтрации и иконок на фронте
+    categoryKey: 'nutrition' | 'vitamins' | 'metabolism' | 'hormones' | 'inflammation' | 'lifestyle'
     title: string
+    // Короткое резюме (одна фраза)
     text: string
+    // Развёрнутые шаги — раскрываются в карточке
+    detail: string[]
+    foods?: SignalFoods
     severity: 'info' | 'warning' | 'critical'
     sources: string[]
 }
@@ -12,76 +24,93 @@ type MarkerResult = {
     value: string | null
     isOutOfRange: boolean
     outOfRangeDirection: 'low' | 'high' | null
+    referenceMin?: string | null
+    referenceMax?: string | null
+    section?: string | null
 }
 
-// Marker name/code → canonical key for matching
-const MARKER_ALIASES: Record<string, string[]> = {
-    VIT_D: ['25-oh витамин d', 'витамин d', '25(oh)d', 'витамин d3', '25-гидроксивитамин d'],
-    HGB: ['гемоглобин', 'hemoglobin', 'hgb', 'hb'],
-    FERRITIN: ['ферритин', 'ferritin'],
-    B12: ['витамин b12', 'кобаламин', 'b12', 'vitamin b12'],
-    TSH: ['ттг', 'тиреотропный гормон', 'tsh'],
-    T4_FREE: ['т4 свободный', 'свободный т4', 'ft4', 'т4 св'],
-    CORTISOL: ['кортизол', 'cortisol'],
-    INSULIN: ['инсулин', 'insulin'],
-    GLUCOSE: ['глюкоза', 'glucose', 'глюкоза в крови'],
-    OMEGA3: ['омега-3', 'омега 3', 'omega-3'],
-    MAGNESIUM: ['магний', 'magnesium', 'mg'],
-    ZINC: ['цинк', 'zinc', 'zn'],
-    IRON: ['железо', 'iron', 'fe'],
-    ALT: ['алт', 'аланинаминотрансфераза', 'alt', 'alat'],
-    AST: ['аст', 'аспартатаминотрансфераза', 'ast', 'asat'],
-    CHOLESTEROL: ['холестерин общий', 'общий холестерин', 'cholesterol total'],
-    LDL: ['лпнп', 'ldl', 'лпнп-холестерин'],
-    HDL: ['лпвп', 'hdl', 'лпвп-холестерин'],
-    TRIGLYCERIDES: ['триглицериды', 'triglycerides', 'tg'],
-    CRP: ['срб', 'crp', 'c-реактивный белок', 'с-реактивный белок'],
-    URIC_ACID: ['мочевая кислота', 'uric acid'],
-    TESTOSTERONE: ['тестостерон общий', 'тестостерон', 'testosterone'],
-    ESTRADIOL: ['эстрадиол', 'estradiol', 'e2'],
-    FOLIC_ACID: ['фолиевая кислота', 'folate', 'фолат'],
+function parseValue(v: string | null): number | null {
+    if (v === null) return null
+    const n = Number(v.replace(',', '.'))
+    return Number.isFinite(n) ? n : null
 }
 
-function matchMarkerKey(m: MarkerResult): string | null {
-    const nameLower = (m.name ?? '').toLowerCase()
-    const codeLower = (m.code ?? '').toLowerCase()
-    for (const [key, aliases] of Object.entries(MARKER_ALIASES)) {
-        if (aliases.some((a) => nameLower.includes(a) || codeLower.includes(a))) return key
+// Оценка всех маркеров: по справочнику оптимумов (решение 032), а для маркеров
+// без оптимума или вне справочника — по норме из распознанного бланка (fallback).
+// Возвращает карту key → Evaluation (первое совпадение на ключ).
+export function evaluateMarkers(
+    markers: MarkerResult[],
+    gender: 'male' | 'female' | null
+): Map<string, Evaluation> {
+    const evals = new Map<string, Evaluation>()
+    for (const m of markers) {
+        const labRange = {
+            min: parseValue(m.referenceMin ?? null),
+            max: parseValue(m.referenceMax ?? null),
+            isOutOfRange: m.isOutOfRange,
+            direction: m.outOfRangeDirection,
+        }
+        const key = matchCatalogKey(m.name, m.code)
+        if (key) {
+            if (evals.has(key)) continue
+            const ev = evaluateMarker(key, parseValue(m.value), gender, labRange)
+            if (ev) evals.set(key, ev)
+        } else {
+            // Маркер вне справочника — оцениваем по бланку, если есть сигнал отклонения
+            const synthKey = `lab:${m.name.toLowerCase()}`
+            if (evals.has(synthKey)) continue
+            evals.set(synthKey, {
+                key: synthKey,
+                display: m.name,
+                // Единый раздел «Прочие» для маркеров вне справочника, чтобы не
+                // смешивать коды разделов с сырыми названиями из бланка
+                section: 'other',
+                isOutOfRange: m.isOutOfRange,
+                direction: m.outOfRangeDirection,
+                optimum: { min: labRange.min, max: labRange.max },
+                source: 'lab',
+            })
+        }
     }
-    return null
+    return evals
 }
 
 export function generateSignals(
     markers: MarkerResult[],
     questionnaireTags: string[],
-    _gender: 'male' | 'female' | null
+    gender: 'male' | 'female' | null
 ): Signal[] {
     const signals: Signal[] = []
     const tags = new Set(questionnaireTags)
 
-    // Index markers by canonical key (first match wins)
-    const markerMap = new Map<string, MarkerResult>()
-    for (const m of markers) {
-        const key = matchMarkerKey(m)
-        if (key && !markerMap.has(key)) markerMap.set(key, m)
-    }
+    // Оцениваем по СОБСТВЕННЫМ оптимумам (решение 032), а не по нормам из бланка
+    const evals = evaluateMarkers(markers, gender)
 
-    const get = (key: string) => markerMap.get(key)
     const isLow = (key: string) => {
-        const m = get(key)
-        return m?.isOutOfRange === true && m.outOfRangeDirection === 'low'
+        const e = evals.get(key)
+        return e?.isOutOfRange === true && e.direction === 'low'
     }
     const isHigh = (key: string) => {
-        const m = get(key)
-        return m?.isOutOfRange === true && m.outOfRangeDirection === 'high'
+        const e = evals.get(key)
+        return e?.isOutOfRange === true && e.direction === 'high'
     }
+    const markerMap = { has: (key: string) => evals.has(key) }
+    const get = (key: string) => (evals.has(key) ? { isOutOfRange: evals.get(key)!.isOutOfRange } : undefined)
 
     // ── Vitamin D ──────────────────────────────────────────────────────────
     if (isLow('VIT_D')) {
         signals.push({
+            id: 'vit_d_low',
             category: 'Витамины',
+            categoryKey: 'vitamins',
             title: 'Дефицит витамина D',
-            text: 'Уровень витамина D ниже оптимального. Рекомендуется 2000–4000 МЕ/день (D3 с K2), принимать с жирной едой в первой половине дня. Через 3 месяца — повторный контроль.',
+            text: 'Уровень витамина D ниже оптимального.',
+            detail: [
+                'D3 с витамином K2, 2000–4000 МЕ в день.',
+                'Принимать с жирной едой в первой половине дня.',
+                'Регулярно бывать на солнце с открытыми руками 15+ минут (10–14 часов).',
+                'Повторный контроль через 3 месяца.',
+            ],
             severity: 'warning',
             sources: ['VIT_D'],
         })
@@ -91,9 +120,18 @@ export function generateSignals(
     if (isLow('HGB') || isLow('FERRITIN') || isLow('IRON')) {
         const src = (['HGB', 'FERRITIN', 'IRON'] as const).filter((k) => isLow(k))
         signals.push({
+            id: 'iron_low',
             category: 'Кровь',
+            categoryKey: 'vitamins',
             title: 'Дефицит железа',
-            text: 'Показатели железа ниже оптимума. Увеличьте потребление красного мяса (баранина, говядина), печени, тёмной листовой зелени. Витамин C с каждым приёмом пищи усиливает усвоение. Избегайте кофе/чая за час до и после еды — они блокируют всасывание железа.',
+            text: 'Показатели железа ниже оптимума.',
+            detail: [
+                'Витамин C с каждым приёмом пищи усиливает усвоение железа.',
+                'Кофе и чай — не раньше чем через час после еды, они блокируют всасывание.',
+            ],
+            foods: {
+                add: ['Красное мясо: баранина, говядина', 'Печень', 'Тёмная листовая зелень'],
+            },
             severity: isLow('HGB') ? 'critical' : 'warning',
             sources: src,
         })
@@ -102,9 +140,15 @@ export function generateSignals(
     // ── B12 ────────────────────────────────────────────────────────────────
     if (isLow('B12')) {
         signals.push({
+            id: 'b12_low',
             category: 'Витамины',
+            categoryKey: 'vitamins',
             title: 'Дефицит витамина B12',
-            text: 'Низкий B12 — частая причина усталости, тумана в голове, плохого настроения. Приоритет: метилкобаламин (не цианокобаламин) 1000 мкг/день под язык. Проверить уровень гомоцистеина и фолата.',
+            text: 'Низкий B12 — частая причина усталости и тумана в голове.',
+            detail: [
+                'Метилкобаламин (не цианокобаламин) 1000 мкг в день под язык.',
+                'Проверить уровень гомоцистеина и фолата.',
+            ],
             severity: 'warning',
             sources: ['B12'],
         })
@@ -113,17 +157,28 @@ export function generateSignals(
     // ── Thyroid ────────────────────────────────────────────────────────────
     if (isHigh('TSH') || isLow('T4_FREE')) {
         signals.push({
+            id: 'thyroid_risk',
             category: 'Щитовидная железа',
+            categoryKey: 'hormones',
             title: 'Риск гипотиреоза',
-            text: 'Показатели щитовидной железы требуют внимания. Рекомендуется консультация эндокринолога. Нутрициологически: обеспечить достаточный йод (морские водоросли, морская рыба), селен (2–3 бразильских ореха в день), цинк.',
+            text: 'Показатели щитовидной железы требуют внимания.',
+            detail: [
+                'Рекомендуется консультация эндокринолога.',
+                'Селен: 2–3 бразильских ореха в день.',
+                'Обеспечить достаточный йод и цинк.',
+            ],
+            foods: { add: ['Морские водоросли', 'Морская рыба', 'Бразильские орехи'] },
             severity: 'critical',
             sources: (['TSH', 'T4_FREE'] as const).filter((k) => get(k)?.isOutOfRange),
         })
     } else if (tags.has('THYROID_RISK') && !markerMap.has('TSH')) {
         signals.push({
+            id: 'thyroid_symptoms',
             category: 'Щитовидная железа',
+            categoryKey: 'hormones',
             title: 'Симптомы риска гипотиреоза',
-            text: 'Сочетание симптомов (усталость + зябкость + выпадение волос) указывает на возможные нарушения щитовидной железы. Рекомендуем сдать ТТГ, Т4 свободный и Т3.',
+            text: 'Усталость, зябкость и выпадение волос — возможные нарушения щитовидной железы.',
+            detail: ['Рекомендуем сдать ТТГ, Т4 свободный и Т3.'],
             severity: 'info',
             sources: ['questionnaire:THYROID_RISK'],
         })
@@ -132,9 +187,17 @@ export function generateSignals(
     // ── Cortisol / Adrenal ─────────────────────────────────────────────────
     if (isHigh('CORTISOL') || tags.has('ADRENAL_STRESS')) {
         signals.push({
+            id: 'cortisol_high',
             category: 'Стресс и надпочечники',
-            title: 'Повышенный кортизол / надпочечниковый стресс',
-            text: 'Высокий кортизол или признаки хронического стресса. Сократите кофе до 1–2 чашек до 14:00. Добавьте адаптогены: ашваганда 300–500 мг, магний глицинат 400 мг вечером. Практики: 10 минут дыхания 4-7-8 перед сном.',
+            categoryKey: 'hormones',
+            title: 'Повышенный кортизол',
+            text: 'Высокий кортизол или признаки хронического стресса.',
+            detail: [
+                'Кофе — не более 1–2 чашек до 14:00.',
+                'Адаптогены: ашваганда 300–500 мг, магний глицинат 400 мг вечером.',
+                'Дыхание 4-7-8 по 10 минут перед сном, дневной отдых 15 минут.',
+                'Информационная гигиена: меньше новостей и конфликтного контента.',
+            ],
             severity: 'warning',
             sources: [isHigh('CORTISOL') ? 'CORTISOL' : 'questionnaire:ADRENAL_STRESS'],
         })
@@ -143,9 +206,21 @@ export function generateSignals(
     // ── Glucose / Insulin resistance ───────────────────────────────────────
     if (isHigh('GLUCOSE') || isHigh('INSULIN')) {
         signals.push({
+            id: 'insulin_resistance',
             category: 'Метаболизм',
+            categoryKey: 'metabolism',
             title: 'Риск инсулинорезистентности',
-            text: 'Повышенная глюкоза или инсулин. Уберите перекусы, соблюдайте интервалы 4–5 часов между едой, исключите быстрые углеводы. Берберин 500 мг 2×/день с едой может снизить инсулинорезистентность. Физическая нагрузка после каждого приёма пищи 15–20 мин.',
+            text: 'Повышенная глюкоза или инсулин.',
+            detail: [
+                'Убрать перекусы, интервалы 4–5 часов между едой.',
+                'Исключить быстрые углеводы; общий ГИ рациона держать ниже 45.',
+                'Берберин 500 мг 2 раза в день с едой.',
+                'Физическая нагрузка 15–20 минут после каждого приёма пищи.',
+            ],
+            foods: {
+                avoid: ['Сахар и подсластители', 'Белый рис, картофель, манка', 'Фруктовые соки'],
+                add: ['Гречка, киноа, амарант', 'Зелень и овощи', 'Белок с полезными жирами'],
+            },
             severity: 'critical',
             sources: (['GLUCOSE', 'INSULIN'] as const).filter((k) => isHigh(k)),
         })
@@ -154,18 +229,36 @@ export function generateSignals(
     // ── Lipids ─────────────────────────────────────────────────────────────
     if (isHigh('CHOLESTEROL') || isHigh('LDL') || isHigh('TRIGLYCERIDES')) {
         signals.push({
-            category: 'Сердечно-сосудистая система',
+            id: 'dyslipidemia',
+            category: 'Сердце и сосуды',
+            categoryKey: 'metabolism',
             title: 'Дислипидемия',
-            text: 'Повышенные жиры крови. Основа: омега-3 жирные кислоты (EPA+DHA 2–3 г/день), жирная рыба 3 раза в неделю. Исключить трансжиры и рафинированные масла. Добавить клетчатку: овсяные отруби, семена льна, авокадо.',
+            text: 'Повышенные жиры крови.',
+            detail: [
+                'Омега-3 (EPA+DHA) 2–3 г в день.',
+                'Исключить трансжиры и рафинированные масла.',
+                'Добавить клетчатку: овсяные отруби, семена льна.',
+            ],
+            foods: {
+                add: ['Жирная рыба 3 раза в неделю', 'Авокадо', 'Семена льна'],
+                avoid: ['Трансжиры', 'Рафинированные масла'],
+            },
             severity: isHigh('LDL') ? 'critical' : 'warning',
             sources: (['CHOLESTEROL', 'LDL', 'TRIGLYCERIDES'] as const).filter((k) => isHigh(k)),
         })
     }
     if (isLow('HDL')) {
         signals.push({
-            category: 'Сердечно-сосудистая система',
-            title: 'Низкий ЛПВП (защитный холестерин)',
-            text: 'ЛПВП ниже нормы — повышает сердечно-сосудистый риск. Аэробные нагрузки 150 мин/нед обязательны. Полезные жиры: авокадо, оливковое масло Extra Virgin, орехи.',
+            id: 'hdl_low',
+            category: 'Сердце и сосуды',
+            categoryKey: 'metabolism',
+            title: 'Низкий защитный холестерин (ЛПВП)',
+            text: 'ЛПВП ниже нормы — повышает сердечно-сосудистый риск.',
+            detail: [
+                'Аэробные нагрузки 150 минут в неделю.',
+                'Полезные жиры каждый день.',
+            ],
+            foods: { add: ['Авокадо', 'Оливковое масло Extra Virgin', 'Орехи'] },
             severity: 'warning',
             sources: ['HDL'],
         })
@@ -174,17 +267,38 @@ export function generateSignals(
     // ── CRP / Inflammation ─────────────────────────────────────────────────
     if (isHigh('CRP')) {
         signals.push({
+            id: 'inflammation_crp',
             category: 'Воспаление',
+            categoryKey: 'inflammation',
             title: 'Системное воспаление (СРБ повышен)',
-            text: 'Хроническое воспаление — корень большинства метаболических нарушений. Исключите провоспалительные продукты: сахар, рафинированные масла, глютен (временно). Куркумин 500–1000 мг/день с чёрным перцем — природный противовоспалительный агент. Омега-3 обязательно.',
+            text: 'Хроническое воспаление — корень многих метаболических нарушений.',
+            detail: [
+                'Куркумин 500–1000 мг в день с чёрным перцем.',
+                'Омега-3 обязательно.',
+                'Глютен временно исключить на 4 недели.',
+            ],
+            foods: {
+                avoid: ['Сахар', 'Рафинированные масла', 'Глютен (временно)'],
+                add: ['Жирная рыба', 'Зелень и овощи', 'Куркума'],
+            },
             severity: 'critical',
             sources: ['CRP'],
         })
     } else if (tags.has('INFLAMMATION')) {
         signals.push({
+            id: 'inflammation_symptoms',
             category: 'Воспаление',
+            categoryKey: 'inflammation',
             title: 'Симптомы воспаления',
-            text: 'Боли в суставах/мышцах указывают на возможное воспаление. Рекомендуем сдать СРБ высокочувствительный. Уже сейчас: омега-3, куркумин, противовоспалительная диета.',
+            text: 'Боли в суставах и мышцах указывают на возможное воспаление.',
+            detail: [
+                'Рекомендуем сдать СРБ высокочувствительный.',
+                'Уже сейчас: омега-3, куркумин, противовоспалительная диета.',
+            ],
+            foods: {
+                avoid: ['Сахар', 'Глютен', 'Молочные продукты из коровьего молока'],
+                add: ['Жирная рыба', 'Зелень', 'Полезные жиры'],
+            },
             severity: 'info',
             sources: ['questionnaire:INFLAMMATION'],
         })
@@ -193,9 +307,13 @@ export function generateSignals(
     // ── Magnesium ──────────────────────────────────────────────────────────
     if (isLow('MAGNESIUM') || tags.has('SLEEP_QUALITY_LOW') || tags.has('MOOD_IMBALANCE')) {
         signals.push({
+            id: 'magnesium_low',
             category: 'Нутриенты',
+            categoryKey: 'vitamins',
             title: 'Вероятный дефицит магния',
-            text: 'Магний участвует в 300+ ферментативных реакциях. Симптомы дефицита: плохой сон, судороги, тревожность, усталость. Магний глицинат или малат 400 мг вечером. Продукты: тёмный шоколад >70%, тыквенные семечки, зелёная листовая зелень.',
+            text: 'Магний участвует в 300+ реакциях: сон, судороги, тревожность, усталость.',
+            detail: ['Магний глицинат или малат 400 мг вечером.'],
+            foods: { add: ['Тёмный шоколад >70%', 'Тыквенные семечки', 'Зелёная листовая зелень'] },
             severity: 'info',
             sources: [isLow('MAGNESIUM') ? 'MAGNESIUM' : 'questionnaire'],
         })
@@ -204,9 +322,16 @@ export function generateSignals(
     // ── Lifestyle-based ────────────────────────────────────────────────────
     if (tags.has('SLEEP_DEFICIT')) {
         signals.push({
+            id: 'sleep_deficit',
             category: 'Сон и восстановление',
+            categoryKey: 'lifestyle',
             title: 'Дефицит сна',
-            text: 'Хронический недосып повышает кортизол, нарушает метаболизм глюкозы, усиливает воспаление. Целевой минимум: 7 часов, ложиться до 23:00. Магний глицинат + мелатонин 0,5 мг за 30 минут до сна.',
+            text: 'Недосып повышает кортизол, нарушает метаболизм глюкозы, усиливает воспаление.',
+            detail: [
+                'Целевой минимум 7 часов, ложиться до 23:00.',
+                'Магний глицинат + мелатонин 0,5 мг за 30 минут до сна.',
+                'Вечером — тёплый свет, без гаджетов за час до сна.',
+            ],
             severity: 'warning',
             sources: ['questionnaire:SLEEP_DEFICIT'],
         })
@@ -214,9 +339,16 @@ export function generateSignals(
 
     if (tags.has('DEHYDRATION_RISK')) {
         signals.push({
+            id: 'dehydration',
             category: 'Гидратация',
-            title: 'Недостаточное потребление воды',
-            text: 'Цель — 1,5–2,5 л чистой воды в день (без учёта чая/кофе). Начинайте день со стакана воды с лимоном натощак. Зелёные чаи и травяные настои в счёт.',
+            categoryKey: 'lifestyle',
+            title: 'Недостаточно воды',
+            text: 'Цель — 1,5–2 л чистой воды в день между приёмами пищи.',
+            detail: [
+                'Начинать день со стакана тёплой воды с лимоном натощак.',
+                'Пить по полстакана каждый час; травяные чаи в счёт.',
+                'Не пить холодное и не запивать еду.',
+            ],
             severity: 'info',
             sources: ['questionnaire:DEHYDRATION_RISK'],
         })
@@ -224,9 +356,15 @@ export function generateSignals(
 
     if (tags.has('EATING_PATTERN_ISSUE')) {
         signals.push({
+            id: 'late_dinner',
             category: 'Пищевое поведение',
+            categoryKey: 'nutrition',
             title: 'Поздний ужин',
-            text: 'Ужин менее чем за 2 часа до сна нарушает пищеварение, снижает качество сна и препятствует ночному липолизу. Перенесите последний приём пищи на 3+ часа до сна.',
+            text: 'Ужин менее чем за 2 часа до сна нарушает пищеварение и ночной липолиз.',
+            detail: [
+                'Перенести последний приём пищи на 3–4 часа до сна.',
+                'Лучшее время ужина — 19:00; твёрдые сыры на ужин не рекомендуются.',
+            ],
             severity: 'warning',
             sources: ['questionnaire:EATING_PATTERN_ISSUE'],
         })
@@ -234,9 +372,16 @@ export function generateSignals(
 
     if (tags.has('DIGESTIVE')) {
         signals.push({
+            id: 'digestive',
             category: 'Пищеварение',
+            categoryKey: 'nutrition',
             title: 'Нарушение пищеварения',
-            text: 'Вздутие и тяжесть после еды — признаки ферментной недостаточности или дисбиоза. Пробиотики (5–10 млрд КОЕ/день), пищеварительные ферменты с едой, ферментированные продукты (квашеная капуста, кефир). Исключите глютен и молочку на 4 недели для теста.',
+            text: 'Вздутие и тяжесть после еды — признаки ферментной недостаточности или дисбиоза.',
+            detail: [
+                'Пробиотики 5–10 млрд КОЕ в день, ферменты с едой.',
+                'Тщательно пережёвывать; исключить глютен и молочку на 4 недели для теста.',
+            ],
+            foods: { add: ['Квашеная капуста', 'Кефир (не коровий)', 'Зелень'] },
             severity: 'warning',
             sources: ['questionnaire:DIGESTIVE'],
         })
@@ -244,19 +389,60 @@ export function generateSignals(
 
     if (tags.has('GOAL_LOSE_WEIGHT')) {
         signals.push({
+            id: 'weight_loss',
             category: 'Управление весом',
+            categoryKey: 'metabolism',
             title: 'Стратегия снижения веса',
-            text: '3-разовое питание без перекусов — базовый принцип. Белок 1,5 г/кг веса на каждый приём. Исключить сахар, рафинированные масла, быстрые углеводы. Прерывистое голодание 16:8 рассмотреть после 4-6 недель базового питания.',
+            text: '3-разовое питание без перекусов — базовый принцип.',
+            detail: [
+                'Белок 1,5 г/кг веса на каждый приём.',
+                'Исключить сахар, рафинированные масла, быстрые углеводы.',
+                'Интервальное голодание 16:8 рассмотреть после 4–6 недель базы.',
+            ],
             severity: 'info',
-            sources: ['questionnaire:GOAL_LOSE_WEIGHT'],
+            sources: ['questionnaire:GOAL_LOSE'],
         })
     }
 
-    // Deduplicate by title
+    // Deduplicate by id
     const seen = new Set<string>()
     return signals.filter((s) => {
-        if (seen.has(s.title)) return false
-        seen.add(s.title)
+        if (seen.has(s.id)) return false
+        seen.add(s.id)
         return true
     })
+}
+
+// Итоговый индекс здоровья 0–100 — ТОЛЬКО по объективным данным анализов
+// (отклонения маркеров от оптимумов). Сигналы образа жизни из анкеты его не
+// понижают: это подсказки, а не патология. Если анализов нет — score = null.
+export function computeHealthScore(evals: Map<string, Evaluation>): number | null {
+    if (evals.size === 0) return null
+    let penalty = 0
+    for (const e of evals.values()) {
+        if (e.isOutOfRange) penalty += 100 / evals.size
+    }
+    return Math.max(20, Math.round(100 - penalty))
+}
+
+export type SectionScore = { section: string; title: string; total: number; outOfRange: number; score: number }
+
+// Балл по каждому разделу анализов — для «журнальной» разбивки на фронте.
+export function computeSectionScores(evals: Map<string, Evaluation>): SectionScore[] {
+    const bySection = new Map<string, { total: number; out: number }>()
+    for (const e of evals.values()) {
+        const agg = bySection.get(e.section) ?? { total: 0, out: 0 }
+        agg.total += 1
+        if (e.isOutOfRange) agg.out += 1
+        bySection.set(e.section, agg)
+    }
+    return [...bySection.entries()]
+        .map(([section, { total, out }]) => ({
+            section,
+            title: SECTION_TITLES[section] ?? section,
+            total,
+            outOfRange: out,
+            score: total > 0 ? Math.round(100 - (out / total) * 100) : 100,
+        }))
+        .sort((a, b) => a.score - b.score)
 }

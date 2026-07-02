@@ -19,6 +19,19 @@ const ICON_SVG: Record<string, string> = {
     '<path d="M16 5 C16 11 12 13 9 15 C12 17 16 19 16 27 C16 19 20 17 23 15 C20 13 16 11 16 5 Z"/><path d="M25 6 C25 8 24 8.6 23 9.2 C24 9.8 25 10.4 25 12.5 C25 10.4 26 9.8 27 9.2 C26 8.6 25 8 25 6 Z" stroke-width="1"/>',
   upload: '<path d="M16 20 V7 M11.5 11.5 L16 7 L20.5 11.5"/><path d="M7 19 v4 A2 2 0 0 0 9 25 h14 A2 2 0 0 0 25 23 v-4"/>',
   shield: '<path d="M16 4 L26 8 v7 c0 6.5 -4.4 10.8 -10 13 C10.4 25.8 6 21.5 6 15 V8 Z"/><path d="M12 15.5 L15 18.5 L20.5 12.5"/>',
+  // Иконки разделов программы образа жизни (24×24 viewBox 0 0 32 32)
+  leaf: '<path d="M25 6 C13 6 7 12 7 22 C7 24 8 26 10 26 C20 26 26 18 26 7 Z"/><path d="M10 26 C13 20 17 15 24 10"/>',
+  clock: '<circle cx="16" cy="16" r="11"/><path d="M16 10 v6.5 l4.5 3"/>',
+  drop: '<path d="M16 4 C16 4 7 14 7 20 A9 9 0 0 0 25 20 C25 14 16 4 16 4 Z"/><path d="M12 20 a4 4 0 0 0 4 4"/>',
+  moon: '<path d="M24 19 A9.5 9.5 0 1 1 14 6.2 A7.5 7.5 0 0 0 24 19 Z"/>',
+  sun: '<circle cx="16" cy="16" r="5.5"/><path d="M16 3.5 v3 M16 25.5 v3 M3.5 16 h3 M25.5 16 h3 M7 7 l2.1 2.1 M22.9 22.9 l2.1 2.1 M25 7 l-2.1 2.1 M9.1 22.9 L7 25"/>',
+  heart: '<path d="M16 27 C6 20 4 14 7 10 C9.5 6.5 14 7 16 11 C18 7 22.5 6.5 25 10 C28 14 26 20 16 27 Z"/>',
+  sparkle: '<path d="M16 4 C16 10 13 13 8 14 C13 15 16 18 16 24 C16 18 19 15 24 14 C19 13 16 10 16 4 Z"/><path d="M24 20 C24 22 23 23 21.5 23.5 C23 24 24 25 24 27 C24 25 25 24 26.5 23.5 C25 23 24 22 24 20 Z" stroke-width="1"/>',
+  activity: '<path d="M4 16 h5 l3 -8 l6 16 l3 -8 h5"/>',
+  ear: '<path d="M10 13 a6 6 0 0 1 12 0 c0 4 -4 4 -4 8 a3 3 0 0 1 -6 0"/><path d="M13 13 a3 3 0 0 1 5.5 -1.5"/>',
+  pill: '<rect x="5" y="12" width="22" height="8" rx="4" transform="rotate(-45 16 16)"/><path d="M11 11 l10 10"/>',
+  flame: '<path d="M16 27 C10 27 7 23 7 18 C7 13 11 11 12 6 C15 9 15 12 16 13 C17 11 18 10 18 8 C21 11 25 14 25 18 C25 23 22 27 16 27 Z"/>',
+  target: '<circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="6"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/>',
 }
 
 export function Icon({ name, size = 24, color = 'var(--gold)', style = {} }: { name: string; size?: number; color?: string; style?: CSSProperties }) {

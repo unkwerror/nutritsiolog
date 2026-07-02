@@ -166,6 +166,12 @@ export default function UploadPage() {
         }
       })
     )
+    // Пересчитываем профиль после распознавания — сохраняем снимок в историю
+    try {
+      await apiRequest('/api/v1/profile/recalculate', { method: 'POST' })
+    } catch {
+      /* профиль пересчитается при следующем открытии рекомендаций */
+    }
     setSubmitting(false)
   }, [files, router, updateRow])
 

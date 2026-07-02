@@ -592,9 +592,11 @@ export default function AnalysisDetailPage({ params }: PageProps) {
         `/api/v1/analysis/${analysisId}/markers/${markerId}`,
         { method: 'PATCH', body: JSON.stringify(body) },
       )
+      // Append-only: сервер возвращает новую строку-ревизию с НОВЫМ id, поэтому
+      // заменяем по id редактируемого маркера (markerId), а не по updated.id
       setAnalysis((prev) =>
         prev
-          ? { ...prev, markers: prev.markers.map((m) => (m.id === updated.id ? updated : m)) }
+          ? { ...prev, markers: prev.markers.map((m) => (m.id === markerId ? updated : m)) }
           : prev,
       )
       closeEdit()

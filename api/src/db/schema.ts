@@ -13,6 +13,7 @@ import {
     uniqueIndex,
     jsonb,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 export const genderEnum = pgEnum('gender', ['male', 'female'])
 
@@ -132,6 +133,15 @@ export const markers = pgTable(
         isEdited: boolean('is_edited').notNull().default(false),
         originalValue: numeric('original_value', { precision: 12, scale: 4 }),
 
+        // Решение 032: ссылка на собственный справочник (проставляется воркером
+        // через MarkerMatcher). Nullable — если маркер не сматчился.
+        catalogId: integer('catalog_id').references(() => markerCatalog.id),
+
+        // Append-only versioning (decisions 034/039): edits INSERT a new revision,
+        // the previous row is only flipped to is_current=false (history preserved).
+        revision: integer('revision').notNull().default(1),
+        isCurrent: boolean('is_current').notNull().default(true),
+
         comment: text('comment'),
         method: varchar('method', { length: 255 }),
 
@@ -139,12 +149,13 @@ export const markers = pgTable(
     },
     (table) => [
         index('markers_analysis_id_idx').on(table.analysisId),
-        // NULLS NOT DISTINCT: two markers with same (analysisId, name, method=null) conflict
-        uniqueIndex('markers_analysis_id_name_method_unique').on(
-            table.analysisId,
-            table.name,
-            table.method
-        ),
+        // Partial unique: only ONE current revision per (analysisId, name, method);
+        // old revisions stay in the table without conflicting.
+        // NULLS NOT DISTINCT (hand-written in migration 0007): two markers with
+        // same (analysisId, name, method=null) conflict
+        uniqueIndex('markers_analysis_id_name_method_current_unique')
+            .on(table.analysisId, table.name, table.method)
+            .where(sql`${table.isCurrent} = true`),
     ]
 )
 
@@ -176,3 +187,91 @@ export type NewMarker = typeof markers.$inferInsert
 
 export type QuestionnaireResponse = typeof questionnaireResponses.$inferSelect
 export type NewQuestionnaireResponse = typeof questionnaireResponses.$inferInsert
+
+// ── Справочник маркеров и оптимумов (решение 032) ─────────────────────────────
+
+export const optimumGenderEnum = pgEnum('optimum_gender', ['all', 'male', 'female'])
+
+export const markerSections = pgTable('marker_sections', {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    code: varchar('code', { length: 30 }).notNull().unique(),
+    title: varchar('title', { length: 120 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+})
+
+export const markerCatalog = pgTable(
+    'marker_catalog',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        key: varchar('key', { length: 40 }).notNull().unique(),
+        sectionCode: varchar('section_code', { length: 30 }).notNull(),
+        display: varchar('display', { length: 200 }).notNull(),
+        unit: varchar('unit', { length: 50 }),
+        aliases: jsonb('aliases')
+            .notNull()
+            .$default(() => []),
+    },
+    (table) => [index('marker_catalog_section_idx').on(table.sectionCode)]
+)
+
+export const markerOptimums = pgTable(
+    'marker_optimums',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        catalogId: integer('catalog_id')
+            .notNull()
+            .references(() => markerCatalog.id),
+        gender: optimumGenderEnum('gender').notNull().default('all'),
+        optimumMin: numeric('optimum_min', { precision: 12, scale: 4 }),
+        optimumMax: numeric('optimum_max', { precision: 12, scale: 4 }),
+        unit: varchar('unit', { length: 50 }),
+    },
+    (table) => [uniqueIndex('marker_optimums_catalog_gender_unique').on(table.catalogId, table.gender)]
+)
+
+// ── История расчётов профиля (решения 033/034 — append-only) ──────────────────
+
+export const profileCalculations = pgTable(
+    'profile_calculations',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id),
+        profileType: varchar('profile_type', { length: 30 }).notNull(),
+        healthScore: integer('health_score'),
+        sectionScores: jsonb('section_scores').notNull().$default(() => []),
+        signals: jsonb('signals').notNull().$default(() => []),
+        findings: jsonb('findings').notNull().$default(() => []),
+        tags: jsonb('tags').notNull().$default(() => []),
+        triggerSource: varchar('trigger_source', { length: 30 }).notNull(),
+        calculatedAt: timestamp('calculated_at').defaultNow().notNull(),
+    },
+    (table) => [index('profile_calc_user_idx').on(table.userId, table.calculatedAt)]
+)
+
+// ── Редактируемый контент рекомендаций (мой пункт улучшений #5) ────────────────
+// Нутрициолог правит тексты через БД без деплоя; код служит фолбэком-сидом.
+
+export const recommendationContent = pgTable(
+    'recommendation_content',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        kind: varchar('kind', { length: 20 }).notNull(), // 'program' | 'signal' | 'food' | 'tip'
+        key: varchar('key', { length: 60 }).notNull().unique(),
+        title: varchar('title', { length: 200 }),
+        body: jsonb('body').notNull(),
+        isActive: boolean('is_active').notNull().default(true),
+        sortOrder: integer('sort_order').notNull().default(0),
+        updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    },
+    (table) => [index('rec_content_kind_idx').on(table.kind)]
+)
+
+export type MarkerSection = typeof markerSections.$inferSelect
+export type MarkerCatalog = typeof markerCatalog.$inferSelect
+export type NewMarkerCatalog = typeof markerCatalog.$inferInsert
+export type MarkerOptimum = typeof markerOptimums.$inferSelect
+export type ProfileCalculation = typeof profileCalculations.$inferSelect
+export type NewProfileCalculation = typeof profileCalculations.$inferInsert
+export type RecommendationContent = typeof recommendationContent.$inferSelect

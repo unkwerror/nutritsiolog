@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { motion, useReducedMotion } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { AppBackground, AppNav, Reveal, ProgressRing, AnimatedNumber, Icon } from '@/components/ds/AppCommon'
-import { Button, StatusBadge } from '@/components/ds/primitives'
+import { AppBackground, AppNav, ProgressRing, AnimatedNumber, Icon } from '@/components/ds/AppCommon'
+import { Button, StatusBadge, FadeUp, EASE_OUT } from '@/components/ds/primitives'
+import { formatDate, analysisTypeLabel } from '@/lib/format'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type AnalysisListItem = {
@@ -17,19 +19,6 @@ type AnalysisListItem = {
   patientName: string | null
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso))
-  } catch {
-    return iso
-  }
-}
-function typeLabel(a: AnalysisListItem): string {
-  const t = a.analysisTypes
-  if (Array.isArray(t) && t.length > 0) return t.join(', ')
-  if (typeof t === 'string' && t.trim().length > 0) return t
-  return `Анализ #${a.id}`
-}
 function greeting(): string {
   const h = new Date().getHours()
   return h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
@@ -40,6 +29,7 @@ function today(): string {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const reduce = useReducedMotion()
   const { user, isLoading: authLoading } = useAuth()
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([])
   const [hasQuestionnaire, setHasQuestionnaire] = useState(false)
@@ -108,10 +98,10 @@ export default function DashboardPage() {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <AppNav completeness={completeness} userInitial={(firstName[0] ?? 'И').toUpperCase()} />
         <div style={{ maxWidth: '60rem', margin: '0 auto', padding: 'clamp(2.5rem,6vw,4.5rem) clamp(1.25rem,5vw,3rem) 7rem' }}>
-          <Reveal style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginBottom: 'clamp(2.5rem,5vw,3.5rem)' }}>
+          <FadeUp style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginBottom: 'clamp(2.5rem,5vw,3.5rem)' }}>
             <div>
               <p className="eyebrow" style={{ marginBottom: 14 }}>
-                {greetingLine || ' '}
+                {greetingLine || ' '}
               </p>
               <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2.4rem,6vw,4rem)', color: '#fff', lineHeight: 1.0, margin: 0 }}>
                 {firstName || 'Профиль'}
@@ -122,36 +112,42 @@ export default function DashboardPage() {
                 <div className="font-display" style={{ fontSize: 26, color: '#fff', lineHeight: 1 }}>
                   <AnimatedNumber value={completeness} suffix="%" />
                 </div>
-                <div style={{ fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>профиль</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>профиль</div>
               </div>
             </ProgressRing>
-          </Reveal>
+          </FadeUp>
 
           {next && (
-            <Reveal delay={60}>
-              <button
+            <FadeUp delay={0.08}>
+              <motion.button
                 onClick={() => router.push(next.to)}
                 className="next-banner"
+                whileHover={reduce ? undefined : { y: -2 }}
+                whileTap={reduce ? undefined : { scale: 0.985 }}
+                transition={{ duration: 0.2, ease: EASE_OUT }}
                 style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 18, padding: '1.25rem 1.5rem', marginBottom: 32, borderRadius: 16, background: 'linear-gradient(100deg, rgba(255,230,146,0.14), rgba(255,230,146,0.05))', border: '1px solid rgba(255,230,146,0.28)' }}
               >
                 <span style={{ display: 'grid', placeItems: 'center', width: 46, height: 46, borderRadius: 12, background: 'rgba(255,230,146,0.12)', flexShrink: 0 }}>
                   <Icon name={next.icon} size={24} />
                 </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', marginBottom: 3 }}>Следующий шаг</div>
-                  <div className="font-display" style={{ fontSize: 20, color: '#fff' }}>{next.nextLabel}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.8)', marginBottom: 3 }}>Следующий шаг</div>
+                  <div className="font-display" style={{ fontSize: 'clamp(17px, 4.6vw, 20px)', color: '#fff' }}>{next.nextLabel}</div>
                 </div>
-                <span className="next-arrow" style={{ color: 'var(--gold)', fontSize: 22 }}>→</span>
-              </button>
-            </Reveal>
+                <span className="next-arrow" style={{ color: 'var(--gold)', fontSize: 22, flexShrink: 0 }}>→</span>
+              </motion.button>
+            </FadeUp>
           )}
 
           <div className="journey-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {steps.map((s, i) => (
-              <Reveal key={s.key} delay={120 + i * 80}>
-                <button
+              <FadeUp key={s.key} delay={0.14 + i * 0.07} style={{ height: '100%' }}>
+                <motion.button
                   onClick={() => router.push(s.to)}
                   className="journey-card"
+                  whileHover={reduce ? undefined : { y: -4 }}
+                  whileTap={reduce ? undefined : { scale: 0.98 }}
+                  transition={{ duration: 0.22, ease: EASE_OUT }}
                   style={{ width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, padding: '1.5rem', borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -162,72 +158,87 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <h3 className="font-display" style={{ fontWeight: 500, fontSize: 24, color: '#fff', margin: '0 0 6px' }}>{s.title}</h3>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: s.done ? 'rgba(255,230,146,0.8)' : 'rgba(255,255,255,0.45)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: s.done ? 'rgba(255,230,146,0.85)' : 'rgba(255,255,255,0.62)' }}>
                       {s.done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)' }} />}
                       {s.status}
                     </span>
                   </div>
-                  <span className="card-cta" style={{ marginTop: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>
+                  <span className="card-cta" style={{ marginTop: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>
                     {s.cta} <span className="card-arrow">→</span>
                   </span>
-                </button>
-              </Reveal>
+                </motion.button>
+              </FadeUp>
             ))}
           </div>
 
-          <Reveal delay={120} style={{ marginTop: 'clamp(3rem,6vw,4.5rem)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+          <FadeUp delay={0.3} style={{ marginTop: 'clamp(3rem,6vw,4.5rem)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
               <h2 className="font-display" style={{ fontWeight: 500, fontSize: 22, color: '#fff', margin: 0 }}>Последние анализы</h2>
               {analysisCount > 0 && (
-                <Link href="/analyses" style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer', textDecoration: 'none' }}>
+                <Link href="/analyses" style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.8)', cursor: 'pointer', textDecoration: 'none', padding: '10px 2px', whiteSpace: 'nowrap' }}>
                   Все анализы →
                 </Link>
               )}
             </div>
             {!loaded ? (
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>Загрузка…</p>
+              <div aria-label="Загрузка" role="status">
+                {[0, 1].map((i) => (
+                  <div key={i} className="shimmer" style={{ height: 62, borderRadius: 12, marginBottom: 8 }} />
+                ))}
+              </div>
             ) : loadError ? (
               <div style={{ borderRadius: 16, padding: '2rem 1.5rem', textAlign: 'center', background: 'rgba(255,120,100,0.06)', border: '1px solid rgba(255,120,100,0.22)' }}>
-                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, margin: '0 0 16px' }}>Не удалось загрузить данные</p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, margin: '0 0 16px' }}>Не удалось загрузить данные</p>
                 <Button variant="outline-gold" size="sm" onClick={loadAnalyses}>
                   Повторить
                 </Button>
               </div>
             ) : analysisCount === 0 ? (
-              <div style={{ borderRadius: 16, padding: '2.5rem 1.5rem', textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.14)' }}>
-                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: '0 0 18px' }}>Вы ещё не загрузили ни одного анализа</p>
+              <div style={{ borderRadius: 16, padding: '2.25rem 1.5rem 2.5rem', textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.14)' }}>
+                <img src="/assets/brand/sprout-ring.svg" alt="" aria-hidden="true" width={76} height={76} style={{ display: 'block', margin: '0 auto 14px', opacity: 0.9 }} />
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, margin: '0 0 18px', lineHeight: 1.5 }}>
+                  Вы ещё не загрузили ни одного анализа.
+                  <br />
+                  Начните — и профиль начнёт расти.
+                </p>
                 <Button variant="gold" size="sm" onClick={() => router.push('/analyses/upload')}>
                   Загрузить анализ
                 </Button>
               </div>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                {analyses.slice(0, 3).map((a) => (
-                  <li key={a.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <Link href={`/analyses/${a.id}`} className="analysis-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0.5rem', cursor: 'pointer', borderRadius: 8, textDecoration: 'none' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <span style={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
+                {analyses.slice(0, 3).map((a, i) => (
+                  <motion.li
+                    key={a.id}
+                    initial={{ opacity: 0, y: reduce ? 0 : 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: EASE_OUT, delay: Math.min(i * 0.07, 0.21) }}
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    <Link href={`/analyses/${a.id}`} className="analysis-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '1rem 0.5rem', cursor: 'pointer', borderRadius: 8, textDecoration: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                        <span style={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
                           <Icon name="lab" size={20} color="rgba(255,255,255,0.6)" />
                         </span>
-                        <div>
-                          <p style={{ color: '#fff', fontSize: 14, margin: 0 }}>{typeLabel(a)}</p>
-                          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{analysisTypeLabel(a.analysisTypes) || `Анализ #${a.id}`}</p>
+                          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
                         </div>
                       </div>
                       <StatusBadge status={a.status} />
                     </Link>
-                  </li>
+                  </motion.li>
                 ))}
               </ul>
             )}
-          </Reveal>
+          </FadeUp>
 
           {isAdmin && (
-            <Reveal delay={160} style={{ marginTop: 32 }}>
+            <FadeUp delay={0.35} style={{ marginTop: 32 }}>
               <Button variant="outline-gold" size="sm" href="/admin">
                 Консоль нутрициолога →
               </Button>
-            </Reveal>
+            </FadeUp>
           )}
         </div>
       </div>

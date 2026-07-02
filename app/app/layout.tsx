@@ -24,12 +24,22 @@ export const metadata: Metadata = {
   title: 'Нутрициолог — персональный профиль здоровья',
   description:
     'Персональный нутрициологический профиль на основе ваших анализов и анкеты.',
+  applicationName: 'Нутрициолог',
+  // PWA: манифест (app/manifest.ts) Next линкует автоматически; здесь — iOS-часть.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Нутрициолог',
+  },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#35462f',
+  // Тёмный фон под вырез/статус-бар в standalone-режиме (safe-area-inset уже
+  // используется в AppNav)
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

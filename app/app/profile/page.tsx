@@ -7,9 +7,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
-import { AppBackground, AppNav, Reveal, Icon } from '@/components/ds/AppCommon'
-import { Button, Field, Input, RadioGroup, GlassCard } from '@/components/ds/primitives'
+import { AppBackground, AppNav, Icon } from '@/components/ds/AppCommon'
+import { Button, Field, Input, RadioGroup, GlassCard, FadeUp, EASE_OUT } from '@/components/ds/primitives'
+
+const MotionLink = motion(Link)
 
 type Gender = 'male' | 'female'
 
@@ -46,6 +49,7 @@ function toForm(me: Me): Form {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const reduce = useReducedMotion()
 
   const [me, setMe] = useState<Me | null>(null)
   const [form, setForm] = useState<Form | null>(null)
@@ -117,7 +121,7 @@ export default function ProfilePage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <AppNav onBack={() => router.push('/dashboard')} backLabel="На главную" />
           <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
-            <p className="font-sans text-sm text-white/35">Загрузка…</p>
+            <p className="font-sans text-sm text-white/50">Загрузка…</p>
           </div>
         </div>
       </main>
@@ -131,7 +135,8 @@ export default function ProfilePage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <AppNav onBack={() => router.push('/dashboard')} backLabel="На главную" />
           <div className="flex flex-col items-center justify-center gap-5 px-6" style={{ minHeight: '60vh' }}>
-            <p className="font-sans text-sm text-white/55 text-center">
+            <img src="/assets/brand/sprout-ring.svg" alt="" aria-hidden="true" width={72} height={72} style={{ opacity: 0.85 }} />
+            <p className="font-sans text-sm text-white/60 text-center">
               {fetchError ?? 'Профиль не найден'}
             </p>
             <Link href="/dashboard" className="btn-outline-gold" style={{ fontSize: '0.875rem' }}>
@@ -152,12 +157,23 @@ export default function ProfilePage() {
         <AppNav onBack={() => router.push('/dashboard')} backLabel="На главную" />
 
         <div style={{ maxWidth: '42rem', margin: '0 auto', padding: 'clamp(2rem,5vw,3.5rem) clamp(1.25rem,5vw,2.5rem) 7rem' }}>
-          {/* Header */}
-          <Reveal style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 'clamp(1.75rem,4vw,2.5rem)' }}>
-            <span
-              style={{ display: 'grid', placeItems: 'center', width: 72, height: 72, borderRadius: '50%', border: '1px solid rgba(255,230,146,0.3)', background: 'rgba(255,230,146,0.1)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 30, color: 'var(--gold)' }}
-            >
-              {initial}
+          {/* Header — «журнальная» шапка: монограмма-аватар в медленно
+              вращающемся гравированном кольце */}
+          <FadeUp style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap', marginBottom: 'clamp(1.75rem,4vw,2.5rem)' }}>
+            <span style={{ position: 'relative', width: 92, height: 92, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <motion.img
+                src="/assets/brand/ring-spin.svg"
+                alt=""
+                aria-hidden="true"
+                animate={reduce ? undefined : { rotate: 360 }}
+                transition={reduce ? undefined : { duration: 90, repeat: Infinity, ease: 'linear' }}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.55 }}
+              />
+              <span
+                style={{ display: 'grid', placeItems: 'center', width: 64, height: 64, borderRadius: '50%', border: '1px solid rgba(255,230,146,0.3)', background: 'rgba(255,230,146,0.1)', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 28, color: 'var(--gold)' }}
+              >
+                {initial}
+              </span>
             </span>
             <div>
               <p className="eyebrow" style={{ marginBottom: 10 }}>
@@ -167,11 +183,12 @@ export default function ProfilePage() {
                 Профиль
               </h1>
             </div>
-          </Reveal>
+          </FadeUp>
 
           {/* Personal data card */}
-          <Reveal delay={60}>
-            <GlassCard variant="card" style={{ padding: 'clamp(1.25rem,4vw,1.75rem)' }}>
+          <FadeUp delay={0.08}>
+            <GlassCard variant="card" style={{ position: 'relative', overflow: 'hidden', padding: 'clamp(1.25rem,4vw,1.75rem)' }}>
+              <img src="/assets/brand/corner-flourish.svg" alt="" aria-hidden="true" style={{ position: 'absolute', top: 0, right: 0, width: 72, opacity: 0.35, transform: 'scaleX(-1)', pointerEvents: 'none' }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(13rem, 1fr))', gap: '1rem' }}>
                 <Field label="Имя">
                   <Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} placeholder="Иван" />
@@ -189,7 +206,7 @@ export default function ProfilePage() {
 
               <div style={{ marginTop: '1rem' }}>
                 <Field label="Email" hint="Используется для входа — изменить нельзя">
-                  <Input value={me.email ?? ''} disabled readOnly style={{ opacity: 0.55, cursor: 'not-allowed' }} />
+                  <Input value={me.email ?? ''} disabled readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} />
                 </Field>
               </div>
 
@@ -199,8 +216,11 @@ export default function ProfilePage() {
                 </Field>
               </div>
 
-              <div style={{ marginTop: '1.25rem' }}>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'rgba(255,255,255,0.7)', marginBottom: '0.625rem' }}>Пол</p>
+              {/* Разделитель между контактами и мед. параметрами */}
+              <div aria-hidden="true" style={{ height: 1, margin: '1.5rem 0 1.25rem', background: 'linear-gradient(90deg, rgba(255,230,146,0.25), rgba(255,255,255,0.06))' }} />
+
+              <div>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', fontWeight: 500, color: 'rgba(255,255,255,0.7)', marginBottom: '0.625rem' }}>Пол</p>
                 <RadioGroup
                   value={form.gender}
                   onChange={(v) => set('gender', v as Gender)}
@@ -217,43 +237,55 @@ export default function ProfilePage() {
                 </Field>
               </div>
             </GlassCard>
-          </Reveal>
+          </FadeUp>
 
           {/* Questionnaire link */}
-          <Reveal delay={120}>
-            <Link
+          <FadeUp delay={0.16}>
+            <MotionLink
               href="/questionnaire"
               className="analysis-row"
+              whileHover={reduce ? undefined : { y: -2 }}
+              whileTap={reduce ? undefined : { scale: 0.985 }}
+              transition={{ duration: 0.2, ease: EASE_OUT }}
               style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16, padding: '1.1rem 1.25rem', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', textDecoration: 'none' }}
             >
               <span style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 12, background: 'rgba(255,230,146,0.1)', flexShrink: 0 }}>
                 <Icon name="survey" size={22} />
               </span>
-              <span style={{ flex: 1 }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
                 <span className="font-display" style={{ display: 'block', fontSize: 17, color: '#fff' }}>Ответы анкеты</span>
-                <span style={{ display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>Изменить ответы о здоровье и образе жизни</span>
+                <span style={{ display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Изменить ответы о здоровье и образе жизни</span>
               </span>
-              <span style={{ color: 'var(--gold)', fontSize: 20 }}>→</span>
-            </Link>
-          </Reveal>
+              <span style={{ color: 'var(--gold)', fontSize: 20, flexShrink: 0 }}>→</span>
+            </MotionLink>
+          </FadeUp>
 
           {/* Actions */}
-          <Reveal delay={160} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 28 }}>
+          <FadeUp delay={0.22} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 28 }}>
             <Button variant="gold" onClick={() => void save()} disabled={saving}>
               {saving ? 'Сохранение…' : 'Сохранить изменения'}
             </Button>
             <Button variant="ghost" href="/dashboard">
               Отмена
             </Button>
-            <span
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 14, color: 'rgba(255,230,146,0.9)', transition: 'opacity .3s', opacity: saved ? 1 : 0 }}
-            >
-              ✓ Изменения сохранены
-            </span>
-          </Reveal>
+            <AnimatePresence>
+              {saved && (
+                <motion.span
+                  role="status"
+                  initial={{ opacity: 0, y: reduce ? 0 : 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.35, ease: EASE_OUT }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 14, color: 'rgba(255,230,146,0.9)' }}
+                >
+                  ✓ Изменения сохранены
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </FadeUp>
 
           {saveError && (
-            <p className="font-sans" style={{ fontSize: 13, marginTop: 14, color: 'rgba(248,113,113,0.9)' }}>
+            <p className="font-sans" role="alert" style={{ fontSize: 14, marginTop: 14, color: 'rgba(248,113,113,0.95)' }}>
               {saveError}
             </p>
           )}

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { apiRequest, apiFetch } from '@/lib/api'
-import { Motes } from '@/components/ds/AppCommon'
+import { Motes, ProgressRing } from '@/components/ds/AppCommon'
+import { formatDate, plural, analysisTypeLabel } from '@/lib/format'
 
 // ─── API types (mirror api/src/modules/admin/schemas.ts) ─────────────────────
 
@@ -76,19 +77,14 @@ type UserDetail = {
 
 const GENDER_RU: Record<Gender, string> = { male: 'Мужской', female: 'Женский' }
 
+// TODO consolidate: у recommendations есть своя карта severity (владелец — другой поток);
+// каноническую версию определит он, тогда эту заменить импортом.
 const SEVERITY: Record<Signal['severity'], { color: string; dot: string; label: string }> = {
   info: { color: 'rgba(255,255,255,0.45)', dot: 'rgba(255,255,255,0.4)', label: 'Рекомендация' },
   warning: { color: 'rgba(255,200,80,0.9)', dot: '#ffc850', label: 'Внимание' },
   critical: { color: 'rgba(255,140,110,0.95)', dot: '#ff9a7a', label: 'Важно' },
 }
 
-function pluralRu(n: number, forms: [string, string, string]): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return forms[0]
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1]
-  return forms[2]
-}
 function ageFrom(iso: string | null): number | null {
   if (!iso) return null
   const dob = new Date(`${iso}T00:00:00`)
@@ -98,11 +94,6 @@ function ageFrom(iso: string | null): number | null {
   const m = now.getMonth() - dob.getMonth()
   if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--
   return age
-}
-function fmtDate(iso: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(
-    new Date(iso)
-  )
 }
 function trimNumeric(v: string | null): string {
   if (v == null) return '—'
@@ -146,45 +137,6 @@ function LivingBackground() {
           backgroundSize: '170px',
         }}
       />
-    </div>
-  )
-}
-
-function ProgressRing({ value, size = 76, stroke = 5 }: { value: number; size?: number; stroke?: number }) {
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const [shown, setShown] = useState(0)
-  useEffect(() => {
-    const t = setTimeout(() => setShown(value), 120)
-    return () => clearTimeout(t)
-  }, [value])
-  return (
-    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
-        <defs>
-          <linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#d4a020" />
-            <stop offset="0.6" stopColor="#ffe692" />
-            <stop offset="1" stopColor="#fff4d5" />
-          </linearGradient>
-        </defs>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="url(#ringg)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c - (shown / 100) * c}
-          style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16,1,0.3,1)' }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center font-display text-white" style={{ fontSize: 16 }}>
-        {value}%
-      </div>
     </div>
   )
 }
@@ -469,7 +421,7 @@ function AdminDetail({
   const age = ageFrom(user.dateOfBirth)
   const meta = [
     user.gender ? GENDER_RU[user.gender] : null,
-    age != null ? `${age} ${pluralRu(age, ['год', 'года', 'лет'])}` : null,
+    age != null ? `${age} ${plural(age, ['год', 'года', 'лет'])}` : null,
   ].filter(Boolean)
 
   const TABS: [typeof tab, string][] = [
@@ -488,7 +440,11 @@ function AdminDetail({
         className="flex flex-wrap items-center gap-5 p-5 sm:p-7"
         style={{ borderBottom: '1px solid var(--line)' }}
       >
-        <ProgressRing value={completeness} />
+        <ProgressRing value={completeness} size={76}>
+          <span className="font-display text-white" style={{ fontSize: 16 }}>
+            {completeness}%
+          </span>
+        </ProgressRing>
         <div className="min-w-[200px] flex-1">
           <h2
             className="font-display mb-1 text-white"
@@ -517,7 +473,7 @@ function AdminDetail({
             {ready ? 'Профиль готов' : 'Не завершён'}
           </span>
           <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
-            Регистрация: {fmtDate(user.createdAt)}
+            Регистрация: {formatDate(user.createdAt)}
           </p>
           <button
             onClick={onPdf}
@@ -607,7 +563,7 @@ function TabAnketa({ detail }: { detail: UserDetail }) {
     <div>
       <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <Row k="Пол" v={user.gender ? GENDER_RU[user.gender] : '—'} />
-        <Row k="Возраст" v={age != null ? `${age} ${pluralRu(age, ['год', 'года', 'лет'])}` : '—'} />
+        <Row k="Возраст" v={age != null ? `${age} ${plural(age, ['год', 'года', 'лет'])}` : '—'} />
         <Row k="Email" v={user.email ?? '—'} />
         <Row k="Телефон" v={user.phone ?? '—'} />
         <Row k="Согласие на ПД" v={user.consentPd ? 'Да' : 'Нет'} />
@@ -670,9 +626,11 @@ function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
             <span className="flex-1">
               <span className="block text-[13.5px] text-white">{a.labName ?? 'Анализ'}</span>
               <span className="block text-xs" style={{ color: 'var(--ink-muted)' }}>
-                {fmtDate(a.createdAt)} · {a.detectedTypes?.length ? a.detectedTypes.join(', ') : 'тип не определён'}
+                {formatDate(a.createdAt)} · {analysisTypeLabel(a.detectedTypes) || 'тип не определён'}
               </span>
             </span>
+            {/* TODO consolidate: ds/primitives StatusBadge визуально отличается
+                (13px, «Готово»/«Обработка» с заглавной) — не меняем, чтобы не ловить регресс. */}
             <span
               className="inline-flex items-center gap-1.5 text-[12px]"
               style={{ color: a.status === 'done' ? 'rgba(255,230,146,0.8)' : 'var(--ink-muted)' }}

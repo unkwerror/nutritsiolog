@@ -26,6 +26,9 @@ npm run build
 echo "==> Running migrations..."
 npm run migrate
 
+echo "==> Seeding catalog & content..."
+npm run seed
+
 echo "==> Pruning API dev dependencies..."
 npm prune --omit=dev
 

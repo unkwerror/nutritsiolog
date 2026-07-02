@@ -142,11 +142,15 @@ export class AnalysisService {
         }
     }
 
-    // Decision 030: update-in-place (not append-only).
-    // isOutOfRange is preserved from OCR unless user explicitly changes referenceMin/Max.
+    // Append-only edit (decisions 034/039): никакого UPDATE значений — старая
+    // ревизия помечается is_current=false, вставляется новая строка-ревизия
+    // с is_edited=true и original_value = исходное OCR-значение.
     async updateMarker(markerId: number, userId: string, input: MarkerEditInput) {
         const existing = await this.repo.findMarkerWithOwner(markerId, userId)
-        if (!existing) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
+        // Редактировать можно только текущую ревизию: GET отдаёт только их,
+        // а правка устаревшего id породила бы вторую «текущую» строку
+        if (!existing || !existing.isCurrent)
+            throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
 
         // Пересчёт нужен и при смене значения, не только референсов: иначе
         // исправленное юзером значение сохраняет старый флаг «вне нормы»
@@ -196,41 +200,59 @@ export class AnalysisService {
             outOfRangeDirection = tooLow ? 'low' : tooHigh ? 'high' : null
         }
 
-        // originalValue фиксирует исходное OCR-значение при первой правке —
-        // независимо от того, какое поле редактировали (иначе rename первым
-        // шагом навсегда терял исходное значение)
-        const originalValue = !existing.isEdited ? existing.value : undefined
+        // originalValue фиксирует исходное OCR-значение: у первой правки берём
+        // value старой строки, у последующих — переносим уже зафиксированное
+        // (иначе rename первым шагом навсегда терял исходное значение)
+        const originalValue = existing.originalValue ?? existing.value
 
-        const updated = await this.repo.updateMarker(markerId, {
-            ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.value !== undefined
-                ? { value: input.value !== null ? String(input.value) : null }
-                : {}),
-            ...(input.unit !== undefined ? { unit: input.unit } : {}),
-            ...(input.referenceMin !== undefined
-                ? { referenceMin: input.referenceMin !== null ? String(input.referenceMin) : null }
-                : {}),
-            ...(input.referenceMax !== undefined
-                ? { referenceMax: input.referenceMax !== null ? String(input.referenceMax) : null }
-                : {}),
-            ...(input.comment !== undefined ? { comment: input.comment } : {}),
-            isOutOfRange,
-            outOfRangeDirection,
-            isEdited: true,
-            ...(originalValue !== undefined ? { originalValue } : {}),
-        }).catch((err: unknown) => {
-            if (
-                err &&
-                typeof err === 'object' &&
-                'code' in err &&
-                err.code === PG_UNIQUE_VIOLATION
-            ) {
-                throw new ConflictError('MARKER_EXISTS', 'Маркер с таким названием уже есть')
-            }
-            throw err
-        })
+        // Новая ревизия = старая строка + правки юзера (merge по полям)
+        const inserted = await this.repo
+            .insertMarkerRevision(existing.id, {
+                analysisId: existing.analysisId,
+                name: input.name !== undefined ? input.name : existing.name,
+                code: existing.code,
+                section: existing.section,
+                value:
+                    input.value !== undefined
+                        ? input.value !== null
+                            ? String(input.value)
+                            : null
+                        : existing.value,
+                unit: input.unit !== undefined ? input.unit : existing.unit,
+                referenceMin:
+                    input.referenceMin !== undefined
+                        ? input.referenceMin !== null
+                            ? String(input.referenceMin)
+                            : null
+                        : existing.referenceMin,
+                referenceMax:
+                    input.referenceMax !== undefined
+                        ? input.referenceMax !== null
+                            ? String(input.referenceMax)
+                            : null
+                        : existing.referenceMax,
+                referenceRaw: existing.referenceRaw,
+                isOutOfRange,
+                outOfRangeDirection,
+                isEdited: true,
+                originalValue,
+                revision: existing.revision + 1,
+                comment: input.comment !== undefined ? input.comment : existing.comment,
+                method: existing.method,
+            })
+            .catch((err: unknown) => {
+                if (
+                    err &&
+                    typeof err === 'object' &&
+                    'code' in err &&
+                    err.code === PG_UNIQUE_VIOLATION
+                ) {
+                    throw new ConflictError('MARKER_EXISTS', 'Маркер с таким названием уже есть')
+                }
+                throw err
+            })
 
-        if (!updated) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
-        return updated
+        if (!inserted) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
+        return inserted
     }
 }

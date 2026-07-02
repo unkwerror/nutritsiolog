@@ -1,10 +1,27 @@
 import { z } from 'zod'
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
+import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import { AnalysisRepository } from '../analysis/repository.js'
+import { QuestionnaireRepository } from '../questionnaire/repository.js'
+import { UsersRepository } from '../auth/repository.js'
+import { ProfileService } from '../profile/service.js'
+import { AdminRepository } from './repository.js'
 import { AdminService } from './service.js'
 import { requireAdmin } from './guard.js'
 import { SearchUsersQuery, SearchUsersResponse, UserDetailResponse } from './schemas.js'
 
 const IdParams = z.object({ id: z.uuid() })
+
+// DI: сервис получает зависимости через конструктор (как AnalysisService в analysis/routes.ts)
+function buildAdminService(db: PostgresJsDatabase) {
+    return new AdminService(
+        new AdminRepository(db),
+        new UsersRepository(db),
+        new AnalysisRepository(db),
+        new QuestionnaireRepository(db),
+        ProfileService.fromDb(db)
+    )
+}
 
 const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
     const gate = { preHandler: [fastify.authenticate, requireAdmin] }
@@ -40,7 +57,7 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const svc = new AdminService(request.server.db)
+            const svc = buildAdminService(request.server.db)
             return reply.send(await svc.searchUsers(request.query))
         }
     )
@@ -58,7 +75,7 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const svc = new AdminService(request.server.db)
+            const svc = buildAdminService(request.server.db)
             return reply.send(await svc.getUserDetail(request.params.id))
         }
     )
@@ -76,7 +93,7 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const svc = new AdminService(request.server.db)
+            const svc = buildAdminService(request.server.db)
             const { buffer, fileName } = await svc.getProfilePdf(request.params.id)
             // RFC 5987: имя файла может быть кириллическим — даём UTF-8 кодировку + ASCII-фоллбэк.
             const asciiFallback = fileName.replace(/[^\x20-\x7E]/g, '_')

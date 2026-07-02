@@ -396,6 +396,18 @@
   100% { transform: translate(calc(-50% + var(--bx)), calc(-50% + var(--by))) scale(1); opacity: 0 }
 }
 
+/* Small-caps eyebrow label — референсится всеми app-экранами (dashboard,
+   анализы, рекомендации, профиль, анкета), но класса раньше не существовало:
+   ярлыки рендерились обычным 16px-текстом. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255,230,146,0.7);
+}
+
 /* Page / step transitions */
 .page-enter { animation: pageIn .55s cubic-bezier(0.16,1,0.3,1) both }
 @keyframes pageIn { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
@@ -474,3 +486,12 @@
   .app-tree-img, .app-ring, .app-glow, .mote, .l-mote, .app-sheen, .gold-word, .headline-gold, .scroll-line { animation: none !important }
   .mote, .l-mote, .app-sheen, .burst { display: none !important }
 }
+
+/* Skeleton shimmer for loading states (recommendations, lists) */
+@keyframes ds-shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+.shimmer {
+  background: linear-gradient(100deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 70%);
+  background-size: 200% 100%;
+  animation: ds-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none } }
