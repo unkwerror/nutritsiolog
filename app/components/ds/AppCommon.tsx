@@ -132,20 +132,27 @@ export function ProgressRing({ value = 0, size = 96, stroke = 5, children }: { v
 
 const BRAND = '/assets/brand/'
 
+type Mote = { left: string; size: string; dur: string; delay: string; dx: string; mo: string }
+
+// Случайные позиции считаем только на клиенте (useEffect), иначе SSR/клиент
+// рендерят разные значения → hydration mismatch.
+function makeMotes(count: number): Mote[] {
+  return Array.from({ length: count }).map(() => ({
+    left: `${(2 + Math.random() * 96).toFixed(1)}%`,
+    size: (3 + Math.random() * 5).toFixed(1),
+    dur: (24 + Math.random() * 26).toFixed(1),
+    delay: (-Math.random() * 38).toFixed(1),
+    dx: `${((Math.random() * 2 - 1) * 90).toFixed(0)}px`,
+    mo: (0.4 + Math.random() * 0.5).toFixed(2),
+  }))
+}
+
 export function AppBackground({ glow = '46%' }: { glow?: string }) {
   // Landing-style rising particles (l-mote) — full-viewport, prominent.
-  const motes = useMemo(
-    () =>
-      Array.from({ length: 22 }).map(() => ({
-        left: `${(2 + Math.random() * 96).toFixed(1)}%`,
-        size: (3 + Math.random() * 5).toFixed(1),
-        dur: (24 + Math.random() * 26).toFixed(1),
-        delay: (-Math.random() * 38).toFixed(1),
-        dx: `${((Math.random() * 2 - 1) * 90).toFixed(0)}px`,
-        mo: (0.4 + Math.random() * 0.5).toFixed(2),
-      })),
-    []
-  )
+  const [motes, setMotes] = useState<Mote[]>([])
+  useEffect(() => {
+    setMotes(makeMotes(22))
+  }, [])
   return (
     <div
       aria-hidden="true"
@@ -244,18 +251,10 @@ export function AppNav({
 // ── Rising gold particles (landing-style, full-viewport) ──────────────────────
 
 export function Motes({ count = 22 }: { count?: number }) {
-  const motes = useMemo(
-    () =>
-      Array.from({ length: count }).map(() => ({
-        left: `${(2 + Math.random() * 96).toFixed(1)}%`,
-        size: (3 + Math.random() * 5).toFixed(1),
-        dur: (24 + Math.random() * 26).toFixed(1),
-        delay: (-Math.random() * 38).toFixed(1),
-        dx: `${((Math.random() * 2 - 1) * 90).toFixed(0)}px`,
-        mo: (0.4 + Math.random() * 0.5).toFixed(2),
-      })),
-    [count]
-  )
+  const [motes, setMotes] = useState<Mote[]>([])
+  useEffect(() => {
+    setMotes(makeMotes(count))
+  }, [count])
   return (
     <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {motes.map((m, i) => {

@@ -1,6 +1,8 @@
 import './core/proxy.js'
-import { Worker } from 'bullmq'
+import { UnrecoverableError, Worker } from 'bullmq'
 import { eq } from 'drizzle-orm'
+
+import { OcrValidationError } from './ocr/errors.js'
 
 import { MinioStorage } from './modules/analysis/infrastructure/storage.js'
 
@@ -100,6 +102,8 @@ const worker = new Worker<AnalysisJobData>(
             ]
 
             await db.transaction(async (tx) => {
+                // onConflictDoNothing: при retry после сбоя между commit и publish
+                // повторная вставка не падает на уникальном индексе (analysis_id, name, method)
                 await tx.insert(markers).values(
                     uniqueMarkers.map((marker) => ({
                         analysisId,
@@ -118,7 +122,7 @@ const worker = new Worker<AnalysisJobData>(
                         comment: marker.comment,
                         method: marker.method,
                     }))
-                )
+                ).onConflictDoNothing()
 
                 await tx
                     .update(analyses)
@@ -141,11 +145,6 @@ const worker = new Worker<AnalysisJobData>(
                     .where(eq(analyses.id, analysisId))
             })
 
-            await redis.publish(
-                `analysis:${analysisId}`,
-                JSON.stringify({ status: 'done', analysisId })
-            )
-            log.info('job done')
         } catch (err) {
             log.error({ err }, 'job failed')
             await db
@@ -158,8 +157,20 @@ const worker = new Worker<AnalysisJobData>(
                 .catch((pubErr: Error) =>
                     log.warn({ err: pubErr }, 'Failed to publish failed status')
                 )
+            // Невалидный результат OCR (не бланк анализа, кривая схема) детерминирован —
+            // повторные платные прогоны Vision+GPT не помогут
+            if (err instanceof OcrValidationError) {
+                throw new UnrecoverableError(err.message)
+            }
             throw err
         }
+
+        // Publish после commit — вне try: сбой Redis здесь не должен перевести
+        // успешно сохранённый анализ в failed (и повторно вставлять маркеры)
+        redis
+            .publish(`analysis:${analysisId}`, JSON.stringify({ status: 'done', analysisId }))
+            .catch((pubErr: Error) => log.warn({ err: pubErr }, 'Failed to publish done status'))
+        log.info('job done')
     },
     {
         connection: { host: config.REDIS_HOST, port: config.REDIS_PORT },
@@ -168,13 +179,16 @@ const worker = new Worker<AnalysisJobData>(
     }
 )
 
-process.on('SIGTERM', async () => {
-    logger.info('SIGTERM received, shutting down worker')
-    try {
-        await worker.close()
-        process.exit(0)
-    } catch (err) {
-        logger.error({ err }, 'Error during worker shutdown')
-        process.exit(1)
-    }
-})
+// PM2 по умолчанию шлёт SIGINT — без него graceful shutdown не срабатывал
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, async () => {
+        logger.info(`${signal} received, shutting down worker`)
+        try {
+            await worker.close()
+            process.exit(0)
+        } catch (err) {
+            logger.error({ err }, 'Error during worker shutdown')
+            process.exit(1)
+        }
+    })
+}

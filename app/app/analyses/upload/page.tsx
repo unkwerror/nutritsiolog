@@ -40,29 +40,54 @@ function inFlight(s: UploadRow['status']): boolean {
   return s === 'uploading' || s === 'pending' || s === 'processing'
 }
 
-async function watchAnalysis(analysisId: number, token: string, onStatus: (s: AnalysisStatus) => void): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/analysis/${analysisId}/events`, { headers: { Authorization: `Bearer ${token}` } })
-  if (!res.body) return
-  const reader = res.body.getReader()
-  const dec = new TextDecoder()
-  let buf = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += dec.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop() ?? ''
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      try {
-        const evt = JSON.parse(line.slice(6)) as SseEvent
-        onStatus(evt.status)
-        if (evt.status === 'done' || evt.status === 'failed') return
-      } catch {
-        /* skip */
+// SSE-стрим статуса; при любом сбое (401 на протухшем токене, обрыв прокси,
+// стрим закрылся без терминального события) — fallback на поллинг GET /analysis/:id.
+// Раньше сбой стрима оставлял строку крутиться вечно без ошибки.
+async function watchAnalysis(analysisId: number, signal: AbortSignal, onStatus: (s: AnalysisStatus) => void): Promise<void> {
+  try {
+    const token = getAccessToken()
+    const res = await fetch(`${API_BASE}/api/v1/analysis/${analysisId}/events`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    })
+    if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`)
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const evt = JSON.parse(line.slice(6)) as SseEvent
+          onStatus(evt.status)
+          if (evt.status === 'done' || evt.status === 'failed') return
+        } catch {
+          /* skip */
+        }
       }
     }
+  } catch {
+    if (signal.aborted) return
   }
+
+  // Fallback-поллинг: ~6 минут по 4 секунды
+  for (let i = 0; i < 90 && !signal.aborted; i++) {
+    await new Promise((r) => setTimeout(r, 4000))
+    if (signal.aborted) return
+    try {
+      const a = await apiRequest<{ status: AnalysisStatus }>(`/api/v1/analysis/${analysisId}`)
+      onStatus(a.status)
+      if (a.status === 'done' || a.status === 'failed') return
+    } catch {
+      /* временный сбой — продолжаем поллинг */
+    }
+  }
+  if (!signal.aborted) throw new Error('Превышено время ожидания распознавания')
 }
 
 export default function UploadPage() {
@@ -74,21 +99,29 @@ export default function UploadPage() {
   const [rows, setRows] = useState<UploadRow[]>([])
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
 
-  const addFiles = useCallback((incoming: FileList | File[]) => {
-    setFiles((prev) => {
-      const next = [...prev]
-      for (const file of Array.from(incoming)) {
-        if (next.length >= MAX_FILES) break
-        next.push({ file, id: uid(), error: validateFile(file) ?? undefined })
-      }
-      return next
-    })
-  }, [])
+  // Обрываем SSE/поллинг при уходе со страницы — иначе до 5 открытых стримов
+  // продолжают дёргать setState на размонтированном компоненте
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  const addFiles = useCallback(
+    (incoming: FileList | File[]) => {
+      const arr = Array.from(incoming)
+      const room = Math.max(0, MAX_FILES - files.length)
+      setNotice(arr.length > room ? `Можно загрузить не более ${MAX_FILES} файлов за раз` : null)
+      setFiles((prev) => [
+        ...prev,
+        ...arr.slice(0, room).map((file) => ({ file, id: uid(), error: validateFile(file) ?? undefined })),
+      ])
+    },
+    [files.length]
+  )
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -108,16 +141,18 @@ export default function UploadPage() {
   }, [])
 
   const handleSubmit = useCallback(async () => {
-    const token = getAccessToken()
-    if (!token) {
+    if (!getAccessToken()) {
       router.replace('/auth')
       return
     }
     const valid = files.filter((f) => !f.error)
     if (valid.length === 0) return
     setSubmitting(true)
+    setNotice(null)
     setRows(valid.map((f) => ({ id: f.id, fileName: f.file.name, analysisId: null, status: 'uploading' as const })))
     setFiles([])
+    const abort = new AbortController()
+    abortRef.current = abort
     await Promise.all(
       valid.map(async (f) => {
         try {
@@ -125,7 +160,7 @@ export default function UploadPage() {
           form.append('file', f.file)
           const result = await apiRequest<UploadResponse>('/api/v1/analysis/upload', { method: 'POST', body: form })
           updateRow(f.id, { analysisId: result.analysisId, status: (result.status as AnalysisStatus) ?? 'pending' })
-          await watchAnalysis(result.analysisId, token, (s) => updateRow(f.id, { status: s }))
+          await watchAnalysis(result.analysisId, abort.signal, (s) => updateRow(f.id, { status: s }))
         } catch (err) {
           updateRow(f.id, { status: 'error', message: err instanceof Error ? err.message : 'Не удалось загрузить файл' })
         }
@@ -136,6 +171,7 @@ export default function UploadPage() {
 
   const validCount = files.filter((f) => !f.error).length
   const allDone = rows.length > 0 && rows.every((r) => !inFlight(r.status))
+  const anyDone = rows.some((r) => r.status === 'done')
 
   return (
     <main style={{ position: 'relative', minHeight: '100vh' }}>
@@ -169,8 +205,9 @@ export default function UploadPage() {
                   <Icon name="upload" size={30} />
                 </span>
                 <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16, margin: '0 0 6px' }}>Перетащите файлы сюда</p>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>или нажмите, чтобы выбрать · PDF, JPEG, PNG · до {MAX_SIZE_MB} МБ</p>
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, margin: 0 }}>или нажмите, чтобы выбрать · PDF, JPEG, PNG · до {MAX_SIZE_MB} МБ</p>
               </div>
+              {notice && <p style={{ color: '#ffd27d', fontSize: 14, margin: '12px 0 0' }}>{notice}</p>}
 
               {files.length > 0 && (
                 <div className="fade-up">
@@ -184,7 +221,7 @@ export default function UploadPage() {
                           <span style={{ display: 'block', color: '#fff', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.file.name}</span>
                           <span style={{ display: 'block', fontSize: 12, color: f.error ? '#ff9a9a' : 'rgba(255,255,255,0.4)' }}>{f.error ?? formatSize(f.file.size)}</span>
                         </span>
-                        <button onClick={() => removeFile(f.id)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' }}>
+                        <button onClick={() => removeFile(f.id)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', minHeight: 44, minWidth: 44, padding: '0 8px' }}>
                           Убрать
                         </button>
                       </li>
@@ -225,13 +262,27 @@ export default function UploadPage() {
               </ul>
 
               {allDone && !submitting && (
-                <div className="fade-up" style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
-                  <Button variant="gold" onClick={() => router.push('/recommendations')}>
-                    Смотреть рекомендации
-                  </Button>
-                  <Button variant="outline-gold" onClick={() => router.push('/dashboard')}>
-                    В кабинет
-                  </Button>
+                <div className="fade-up" style={{ marginTop: 24 }}>
+                  {!anyDone && (
+                    <p style={{ color: '#ff9a9a', fontSize: 14, margin: '0 0 14px', lineHeight: 1.5 }}>
+                      Ни один файл не удалось распознать. Попробуйте загрузить более чёткое фото или PDF из лаборатории.
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {anyDone && (
+                      <Button variant="gold" onClick={() => router.push('/recommendations')}>
+                        Смотреть рекомендации
+                      </Button>
+                    )}
+                    {!anyDone && (
+                      <Button variant="gold" onClick={() => { setRows([]); setNotice(null) }}>
+                        Попробовать ещё раз
+                      </Button>
+                    )}
+                    <Button variant="outline-gold" onClick={() => router.push('/dashboard')}>
+                      В кабинет
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

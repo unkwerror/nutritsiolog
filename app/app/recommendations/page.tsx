@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { AppBackground, AppNav, Reveal, ProgressRing } from '@/components/ds/AppCommon'
@@ -27,17 +28,24 @@ export default function RecommendationsPage() {
   const router = useRouter()
   const [data, setData] = useState<Recommendations | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+
+  const loadData = useCallback(() => {
+    setLoaded(false)
+    setLoadError(false)
+    apiRequest<Recommendations>('/api/v1/profile/recommendations')
+      .then(setData)
+      .catch(() => setLoadError(true))
+      .finally(() => setLoaded(true))
+  }, [])
 
   useEffect(() => {
     if (!getAccessToken()) {
       router.replace('/auth')
       return
     }
-    apiRequest<Recommendations>('/api/v1/profile/recommendations')
-      .then(setData)
-      .catch(() => setData({ signals: [], hasQuestionnaire: false, hasAnalyses: false }))
-      .finally(() => setLoaded(true))
-  }, [router])
+    loadData()
+  }, [router, loadData])
 
   const signals = data?.signals ?? []
   const ready = signals.length > 0
@@ -51,6 +59,13 @@ export default function RecommendationsPage() {
         <div style={{ maxWidth: '46rem', margin: '0 auto', padding: 'clamp(2rem,5vw,3.5rem) clamp(1.25rem,5vw,3rem) 6rem' }}>
           {!loaded ? (
             <p style={{ fontFamily: 'var(--font-sans)', color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>Загрузка…</p>
+          ) : loadError ? (
+            <div style={{ borderRadius: 18, padding: '2.5rem 1.5rem', textAlign: 'center', background: 'rgba(255,120,100,0.06)', border: '1px solid rgba(255,120,100,0.22)' }}>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, margin: '0 0 20px' }}>Не удалось загрузить данные</p>
+              <Button variant="outline-gold" onClick={loadData}>
+                Повторить
+              </Button>
+            </div>
           ) : !ready ? (
             <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               <img src={`${BRAND}monogram.svg`} alt="" width={72} style={{ marginBottom: 24, opacity: 0.9 }} />
@@ -92,16 +107,16 @@ export default function RecommendationsPage() {
               {(!data?.hasQuestionnaire || !data?.hasAnalyses) && (
                 <Reveal style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 28 }}>
                   {!data?.hasQuestionnaire && (
-                    <a onClick={() => router.push('/questionnaire')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
+                    <Link href="/questionnaire" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer', textDecoration: 'none' }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,230,146,0.6)' }} />
                       Заполните анкету для уточнения
-                    </a>
+                    </Link>
                   )}
                   {!data?.hasAnalyses && (
-                    <a onClick={() => router.push('/analyses/upload')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
+                    <Link href="/analyses/upload" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer', textDecoration: 'none' }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,230,146,0.6)' }} />
                       Загрузите анализы для расширенного профиля
-                    </a>
+                    </Link>
                   )}
                 </Reveal>
               )}

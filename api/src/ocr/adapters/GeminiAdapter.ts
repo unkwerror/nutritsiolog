@@ -43,7 +43,13 @@ export class GeminiAdapter implements OcrService {
 
             if (retriesLeft === 0) throw err
 
-            const isRetryable = err instanceof OcrProviderError || err instanceof OcrTimeoutError
+            // Ретрай только на 429/5xx и сетевые сбои — 4xx детерминированы
+            const isRetryable =
+                err instanceof OcrTimeoutError ||
+                (err instanceof OcrProviderError &&
+                    (err.statusCode === undefined ||
+                        err.statusCode === 429 ||
+                        err.statusCode >= 500))
             if (!isRetryable) throw err
 
             const jitter = Math.floor(Math.random() * 1000)
@@ -98,7 +104,10 @@ export class GeminiAdapter implements OcrService {
             return validateLabResult(parsed)
         } catch (err) {
             if (err instanceof OcrValidationError) throw err
-            logger.error({ err, rawResponse: response.text }, 'Failed to parse Gemini response')
+            logger.error(
+                { err, rawResponseLen: response.text?.length ?? 0 },
+                'Failed to parse Gemini response'
+            )
             throw new OcrValidationError(
                 `Invalid JSON from Gemini: ${err instanceof Error ? err.message : String(err)}`
             )

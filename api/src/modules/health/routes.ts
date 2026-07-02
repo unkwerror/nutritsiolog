@@ -16,6 +16,24 @@ const HealthSchema = z.object({
     }),
 })
 
+// SMTP-handshake — самый дорогой чек: кэшируем на 30 сек, чтобы мониторинг
+// с коротким интервалом не открывал соединение к почтовику на каждый опрос
+const SMTP_CACHE_MS = 30_000
+let smtpCache: { ok: boolean; at: number } | null = null
+
+async function checkSmtpCached(): Promise<boolean> {
+    if (smtpCache && Date.now() - smtpCache.at < SMTP_CACHE_MS) return smtpCache.ok
+    let ok = false
+    try {
+        await transporter.verify()
+        ok = true
+    } catch {
+        /* noop */
+    }
+    smtpCache = { ok, at: Date.now() }
+    return ok
+}
+
 const minioClient = new Minio.Client({
     endPoint: config.MINIO_ENDPOINT,
     port: config.MINIO_PORT,
@@ -37,7 +55,6 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
             let pg = false
             let redisOk = false
             let minio = false
-            let smtp = false
 
             try {
                 await request.server.db.execute(sql`SELECT 1`)
@@ -58,12 +75,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (fastify) => {
             } catch {
                 /* noop */
             }
-            try {
-                await transporter.verify()
-                smtp = true
-            } catch {
-                /* noop */
-            }
+            const smtp = await checkSmtpCached()
 
             const checks = { pg, redis: redisOk, minio, smtp }
             const isCritical = pg && redisOk && minio

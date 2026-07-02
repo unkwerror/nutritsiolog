@@ -354,7 +354,7 @@ export default function AdminPage() {
                   </svg>
                 </span>
                 <input
-                  className="glass-input w-full py-3 pl-10 pr-3 text-sm"
+                  className="glass-input w-full py-3 pl-10 pr-3 text-base"
                   placeholder="Поиск по email или имени"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}

@@ -1,7 +1,7 @@
 import { sendOtp, checkOtp, peekOtp } from './strategies/emailOtp.js'
 import { type UsersRepository } from './repository.js'
 import { OtpInvalidError, UserNeedsRegistrationError, UserAlreadyExistsError } from './errors.js'
-import { ConflictError } from '../../core/errors.js'
+import { ConflictError, PG_UNIQUE_VIOLATION } from '../../core/errors.js'
 import { type RequestOtpBody, type VerifyOtpBody, type RegisterBody } from './schemas.js'
 
 export class AuthService {
@@ -46,14 +46,28 @@ export class AuthService {
         const valid = await checkOtp(email, data.code)
         if (!valid) throw new OtpInvalidError()
 
-        const user = await this.repo.create({
-            email,
-            phone,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            consentPd: data.consentPd,
-            consentMedicalData: data.consentMedicalData,
-        })
+        // Гонка двух параллельных register с одним email: find-then-create
+        // не атомарен, ловим 23505 вместо 500
+        const user = await this.repo
+            .create({
+                email,
+                phone,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                consentPd: data.consentPd,
+                consentMedicalData: data.consentMedicalData,
+            })
+            .catch((err: unknown) => {
+                if (
+                    err &&
+                    typeof err === 'object' &&
+                    'code' in err &&
+                    err.code === PG_UNIQUE_VIOLATION
+                ) {
+                    throw new UserAlreadyExistsError()
+                }
+                throw err
+            })
 
         await this.repo.setEmailVerified(user.id)
         return { id: user.id, email: user.email ?? null }

@@ -101,11 +101,12 @@ export class YandexAdapter implements OcrService {
         }
 
         const annotation = json.result?.textAnnotation
+        // Без rawPreview: сырой OCR-текст содержит ФИО/дату рождения пациента,
+        // а Pino redact эти ключи не покрывает
         logger.info({
             hasFullText: !!annotation?.fullText,
             fullTextLen: annotation?.fullText?.length ?? 0,
             blockCount:  annotation?.blocks?.length ?? 0,
-            rawPreview:  JSON.stringify(json).slice(0, 500),
         }, 'Vision OCR sync response')
 
         if (annotation?.fullText?.trim()) return annotation.fullText
@@ -171,7 +172,7 @@ export class YandexAdapter implements OcrService {
 
         if (rawBody === null)
             throw new OcrTimeoutError(`Yandex Vision async timeout after ${this.timeoutMs}ms`)
-        logger.info({ rawPreview: rawBody.slice(0, 800) }, 'Vision OCR async result')
+        logger.info({ rawLen: rawBody.length }, 'Vision OCR async result')
 
         type PageResult = {
             result?: {
@@ -255,7 +256,7 @@ export class YandexAdapter implements OcrService {
             return validateLabResult(JSON.parse(cleaned))
         } catch (err) {
             if (err instanceof OcrValidationError) throw err
-            logger.error({ err, rawText }, 'Failed to parse Yandex GPT response')
+            logger.error({ err, rawTextLen: rawText.length }, 'Failed to parse Yandex GPT response')
             throw new OcrValidationError(
                 `Invalid JSON from Yandex GPT: ${err instanceof Error ? err.message : String(err)}`
             )
@@ -269,7 +270,14 @@ export class YandexAdapter implements OcrService {
             if (err instanceof OcrValidationError) throw err
             if (retriesLeft === 0) throw err
 
-            const isRetryable = err instanceof OcrProviderError || err instanceof OcrTimeoutError
+            // Ретрай только на 429/5xx и сетевые сбои (statusCode undefined).
+            // 4xx (401 истёкший ключ, 400 неверный запрос) повторять бессмысленно.
+            const isRetryable =
+                err instanceof OcrTimeoutError ||
+                (err instanceof OcrProviderError &&
+                    (err.statusCode === undefined ||
+                        err.statusCode === 429 ||
+                        err.statusCode >= 500))
             if (!isRetryable) throw err
 
             const waitMs = delay + Math.floor(Math.random() * 1000)

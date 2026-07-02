@@ -3,17 +3,20 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { apiRequest, setAccessToken } from '@/lib/api'
+import { apiRequest, setAccessToken, ApiRequestError } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { AppBackground } from '@/components/ds/AppCommon'
 import { GlassCard, Button, Input, Field, ProgressSteps } from '@/components/ds/primitives'
 
 type ApiResp<T> = T & { error?: { message?: string; code?: string } }
+type Me = { id: string; email: string; firstName: string | null; lastName: string | null }
 type Step = 'email' | 'otp' | 'register'
 const STEP_INDEX: Record<Step, number> = { email: 0, otp: 1, register: 2 }
 const BRAND = '/assets/brand/'
 
 export default function AuthPage() {
   const router = useRouter()
+  const { user, isLoading: authLoading, setUserAfterLogin } = useAuth()
   const [step, setStep] = useState<Step>('email')
   const [isNewUser, setIsNewUser] = useState(false)
   const [email, setEmail] = useState('')
@@ -26,10 +29,20 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Редирект по подтверждённой сессии из контекста, а не по «сырому» токену
+  // в sessionStorage: просроченный токен раньше давал цикл /auth → /dashboard → /auth
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('accessToken') : null
-    if (token) router.replace('/dashboard')
-  }, [router])
+    if (!authLoading && user) router.replace('/dashboard')
+  }, [authLoading, user, router])
+
+  // После входа кладём юзера в AuthProvider — иначе до полной перезагрузки
+  // страницы шапка показывает «Профиль» вместо имени
+  async function completeLogin(token: string) {
+    setAccessToken(token)
+    const me = await apiRequest<Me>('/api/v1/users/me')
+    setUserAfterLogin(me, token)
+    router.push('/dashboard')
+  }
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault()
@@ -51,21 +64,23 @@ export default function AuthPage() {
 
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault()
-    if (isNewUser) {
-      setStep('register')
-      return
-    }
     setIsLoading(true)
     setError(null)
     try {
+      // Код проверяется и для новых пользователей: бэкенд отвечает
+      // USER_NEEDS_REGISTRATION на валидный код (не сжигая его). Раньше опечатка
+      // в коде обнаруживалась только после заполнения всей анкеты регистрации.
       const data = await apiRequest<ApiResp<{ accessToken: string }>>('/api/v1/auth/verify-otp', {
         method: 'POST',
         body: JSON.stringify({ email, code: code.trim() }),
       })
-      setAccessToken(data.accessToken)
-      router.push('/dashboard')
+      await completeLogin(data.accessToken)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Неверный код')
+      if (err instanceof ApiRequestError && err.code === 'USER_NEEDS_REGISTRATION') {
+        setStep('register')
+      } else {
+        setError(err instanceof Error ? err.message : 'Неверный код')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -88,8 +103,7 @@ export default function AuthPage() {
           consentMedicalData: consentMedical,
         }),
       })
-      setAccessToken(data.accessToken)
-      router.push('/dashboard')
+      await completeLogin(data.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации')
     } finally {
@@ -218,20 +232,28 @@ function ErrorMsg({ children }: { children: ReactNode }) {
   )
 }
 
+// Настоящий <input> внутри <label>: тап по тексту тоже переключает согласие,
+// работает с клавиатуры; строка целиком ≥44px — досягаемо для ЦА 45+
 function Consent({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 11, cursor: 'pointer' }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', minHeight: 44, padding: '4px 0' }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+      />
       <span
-        onClick={() => onChange(!checked)}
-        style={{ marginTop: 1, width: 18, height: 18, borderRadius: 6, flexShrink: 0, display: 'grid', placeItems: 'center', transition: 'all .15s', border: `1.5px solid ${checked ? 'var(--gold)' : 'rgba(255,255,255,0.3)'}`, background: checked ? 'var(--gold)' : 'transparent' }}
+        aria-hidden
+        style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: 'grid', placeItems: 'center', transition: 'all .15s', border: `1.5px solid ${checked ? 'var(--gold)' : 'rgba(255,255,255,0.3)'}`, background: checked ? 'var(--gold)' : 'transparent' }}
       >
         {checked && (
-          <svg width="11" height="11" viewBox="0 0 12 12">
+          <svg width="13" height="13" viewBox="0 0 12 12">
             <path d="M2.5 6.2 5 8.5l4.5-5" stroke="#35462f" strokeWidth="1.9" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
       </span>
-      <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12.5, lineHeight: 1.55 }}>{children}</span>
+      <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.55 }}>{children}</span>
     </label>
   )
 }

@@ -52,8 +52,9 @@ export class AnalysisService {
     async createAnalysis(userId: string, files: FileInput[], opts: CreateAnalysisOptions = {}) {
         if (files.length === 0) throw new NothingUploadedError()
 
-        const results: Array<{ analysisId: number; status: string }> = []
-
+        // Сначала валидируем ВСЕ файлы, потом сохраняем: иначе при невалидном
+        // втором файле первый уже создан и поставлен в очередь, а клиент видит 400
+        const validated: Array<{ file: FileInput; mime: string }> = []
         for (const file of files) {
             // 10.3: validate MIME by magic bytes, not client-provided Content-Type
             const detected = await fileTypeFromBuffer(file.buffer)
@@ -63,13 +64,18 @@ export class AnalysisService {
                     `Unsupported file type: ${detected?.mime ?? 'unknown'}`
                 )
             }
+            validated.push({ file, mime: detected.mime })
+        }
 
-            const fileKey = await this.storage.upload(file.buffer, file.originalName, detected.mime)
+        const results: Array<{ analysisId: number; status: string }> = []
+
+        for (const { file, mime } of validated) {
+            const fileKey = await this.storage.upload(file.buffer, file.originalName, mime)
             const analysis = await this.repo.insert({
                 userId,
                 fileKey,
                 fileOriginalName: file.originalName,
-                fileMimeType: detected.mime,
+                fileMimeType: mime,
                 fileSize: file.buffer.length,
                 analysisType: opts.analysisType,
                 typeSource: opts.analysisType ? 'manual' : 'ai',
@@ -79,7 +85,7 @@ export class AnalysisService {
             await this.queue.add({
                 analysisId: analysis.id,
                 fileKey,
-                mimeType: detected.mime,
+                mimeType: mime,
                 analysisType: opts.analysisType,
                 ocrProvider: opts.ocrProvider,
             })
@@ -142,12 +148,18 @@ export class AnalysisService {
         const existing = await this.repo.findMarkerWithOwner(markerId, userId)
         if (!existing) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')
 
-        const userChangedRef = input.referenceMin !== undefined || input.referenceMax !== undefined
+        // Пересчёт нужен и при смене значения, не только референсов: иначе
+        // исправленное юзером значение сохраняет старый флаг «вне нормы»
+        // и профиль продолжает считать его критичным
+        const affectsRange =
+            input.value !== undefined ||
+            input.referenceMin !== undefined ||
+            input.referenceMax !== undefined
 
         let isOutOfRange = existing.isOutOfRange
         let outOfRangeDirection = existing.outOfRangeDirection
 
-        if (userChangedRef) {
+        if (affectsRange) {
             const mergedValue =
                 input.value !== undefined
                     ? input.value
@@ -184,9 +196,10 @@ export class AnalysisService {
             outOfRangeDirection = tooLow ? 'low' : tooHigh ? 'high' : null
         }
 
-        // originalValue stores the first (OCR) value — only set on the first edit
-        const originalValue =
-            !existing.isEdited && input.value !== undefined ? existing.value : undefined
+        // originalValue фиксирует исходное OCR-значение при первой правке —
+        // независимо от того, какое поле редактировали (иначе rename первым
+        // шагом навсегда терял исходное значение)
+        const originalValue = !existing.isEdited ? existing.value : undefined
 
         const updated = await this.repo.updateMarker(markerId, {
             ...(input.name !== undefined ? { name: input.name } : {}),
@@ -205,6 +218,16 @@ export class AnalysisService {
             outOfRangeDirection,
             isEdited: true,
             ...(originalValue !== undefined ? { originalValue } : {}),
+        }).catch((err: unknown) => {
+            if (
+                err &&
+                typeof err === 'object' &&
+                'code' in err &&
+                err.code === PG_UNIQUE_VIOLATION
+            ) {
+                throw new ConflictError('MARKER_EXISTS', 'Маркер с таким названием уже есть')
+            }
+            throw err
         })
 
         if (!updated) throw new NotFoundError('MARKER_NOT_FOUND', 'Marker not found')

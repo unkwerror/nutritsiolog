@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
@@ -43,25 +44,51 @@ export default function DashboardPage() {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([])
   const [hasQuestionnaire, setHasQuestionnaire] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  // Дата/приветствие зависят от локального времени — считаем только на клиенте
+  // (в useEffect), иначе SSR/клиент могут разойтись → hydration mismatch.
+  const [greetingLine, setGreetingLine] = useState('')
+
+  useEffect(() => {
+    setGreetingLine(`${greeting()} · ${today()}`)
+  }, [])
 
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
 
-  useEffect(() => {
-    if (!getAccessToken()) return
+  const loadAnalyses = useCallback(() => {
+    setLoaded(false)
+    setLoadError(false)
     apiRequest<AnalysisListItem[]>('/api/v1/analysis')
       .then((list) => setAnalyses(Array.isArray(list) ? list : []))
-      .catch(() => setAnalyses([]))
+      .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
+  }, [])
+
+  useEffect(() => {
+    if (!getAccessToken()) return
+    loadAnalyses()
     apiRequest<{ id: number } | null>('/api/v1/questionnaire/my')
       .then((q) => setHasQuestionnaire(!!q))
       .catch(() => setHasQuestionnaire(false))
-    apiRequest('/api/v1/admin/me')
-      .then(() => setIsAdmin(true))
-      .catch(() => setIsAdmin(false))
-  }, [])
+    // Админ-проба кэшируется на сессию — не дёргаем /admin/me при каждом визите.
+    const cachedAdmin = sessionStorage.getItem('isAdmin')
+    if (cachedAdmin !== null) {
+      setIsAdmin(cachedAdmin === '1')
+    } else {
+      apiRequest('/api/v1/admin/me')
+        .then(() => {
+          sessionStorage.setItem('isAdmin', '1')
+          setIsAdmin(true)
+        })
+        .catch(() => {
+          sessionStorage.setItem('isAdmin', '0')
+          setIsAdmin(false)
+        })
+    }
+  }, [loadAnalyses])
 
   const analysisCount = analyses.length
   const hasDone = analyses.some((a) => a.status === 'done')
@@ -84,7 +111,7 @@ export default function DashboardPage() {
           <Reveal style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginBottom: 'clamp(2.5rem,5vw,3.5rem)' }}>
             <div>
               <p className="eyebrow" style={{ marginBottom: 14 }}>
-                {greeting()} · {today()}
+                {greetingLine || ' '}
               </p>
               <h1 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(2.4rem,6vw,4rem)', color: '#fff', lineHeight: 1.0, margin: 0 }}>
                 {firstName || 'Профиль'}
@@ -152,13 +179,20 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
               <h2 className="font-display" style={{ fontWeight: 500, fontSize: 22, color: '#fff', margin: 0 }}>Последние анализы</h2>
               {analysisCount > 0 && (
-                <a onClick={() => router.push('/analyses')} style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer' }}>
+                <Link href="/analyses" style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,230,146,0.7)', cursor: 'pointer', textDecoration: 'none' }}>
                   Все анализы →
-                </a>
+                </Link>
               )}
             </div>
             {!loaded ? (
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>Загрузка…</p>
+            ) : loadError ? (
+              <div style={{ borderRadius: 16, padding: '2rem 1.5rem', textAlign: 'center', background: 'rgba(255,120,100,0.06)', border: '1px solid rgba(255,120,100,0.22)' }}>
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, margin: '0 0 16px' }}>Не удалось загрузить данные</p>
+                <Button variant="outline-gold" size="sm" onClick={loadAnalyses}>
+                  Повторить
+                </Button>
+              </div>
             ) : analysisCount === 0 ? (
               <div style={{ borderRadius: 16, padding: '2.5rem 1.5rem', textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.14)' }}>
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: '0 0 18px' }}>Вы ещё не загрузили ни одного анализа</p>
@@ -170,18 +204,18 @@ export default function DashboardPage() {
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 {analyses.slice(0, 3).map((a) => (
                   <li key={a.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <a onClick={() => router.push(`/analyses/${a.id}`)} className="analysis-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0.5rem', cursor: 'pointer', borderRadius: 8 }}>
+                    <Link href={`/analyses/${a.id}`} className="analysis-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0.5rem', cursor: 'pointer', borderRadius: 8, textDecoration: 'none' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <span style={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
                           <Icon name="lab" size={20} color="rgba(255,255,255,0.6)" />
                         </span>
                         <div>
                           <p style={{ color: '#fff', fontSize: 14, margin: 0 }}>{typeLabel(a)}</p>
-                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
+                          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
                         </div>
                       </div>
                       <StatusBadge status={a.status} />
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>

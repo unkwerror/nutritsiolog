@@ -27,8 +27,6 @@ const ConfigSchema = z.object({
     YANDEX_API_KEY: z.string().optional(),
     YANDEX_FOLDER_ID: z.string().optional(),
 
-    DEMO_ACCESS_KEY: z.string().optional(),
-
     // Список email'ов с доступом к админ-панели (через запятую).
     // Доступ привязан к почте: requireAdmin сверяет request.user.email с этим списком.
     ADMIN_EMAILS: z

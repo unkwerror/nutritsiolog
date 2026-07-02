@@ -1,6 +1,21 @@
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
 
-type ApiError = { error?: { message?: string; code?: string } }
+// Бэкенд отдаёт { error: { message } }, но нативные ошибки Fastify
+// (rate-limit, схема) — плоские { statusCode, error: "...", message: "..." }
+type ApiError = { error?: { message?: string; code?: string } | string; message?: string }
+
+// Ошибка с доменным кодом бэкенда — чтобы UI мог ветвиться
+// (например, USER_NEEDS_REGISTRATION на шаге проверки кода)
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+    public readonly status?: number,
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
 
 let _accessToken: string | null = null
 
@@ -84,10 +99,24 @@ export async function apiRequest<T>(
 
   if (res.status === 204) return {} as T
 
-  const data = await res.json()
+  // Nginx (413, 502...) отдаёт HTML — не пытаемся парсить его как JSON
+  let data: unknown = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
   if (!res.ok) {
-    const err = (data as ApiError).error
-    throw new Error(err?.message ?? `HTTP ${res.status}`)
+    const body = data as ApiError | null
+    const errObj = typeof body?.error === 'object' ? body.error : undefined
+    const message = errObj?.message ?? body?.message
+    const fallback =
+      res.status === 413
+        ? 'Файл слишком большой — максимум 10 МБ'
+        : res.status === 429
+          ? 'Слишком много запросов — попробуйте через минуту'
+          : `Ошибка сервера (HTTP ${res.status})`
+    throw new ApiRequestError(message ?? fallback, errObj?.code, res.status)
   }
   return data as T
 }

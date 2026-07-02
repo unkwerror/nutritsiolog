@@ -12,6 +12,8 @@ import { config } from '../../core/config.js'
 const storage = new MinioStorage()
 const queue = new BullMQQueue()
 
+const allowedOrigins = config.CORS_ORIGIN.split(',').map((s: string) => s.trim())
+
 const AnalysisResultSchema = z.object({
     analysisId: z.number(),
     status: z.string(),
@@ -126,6 +128,16 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 }
             }
 
+            // Multipart-поле не проходит через Zod-схему тела — валидируем вручную,
+            // иначе произвольная строка >20 символов роняет INSERT уже после
+            // сохранения файла в MinIO
+            if (
+                analysisType !== undefined &&
+                !(analysisTypeValues as readonly string[]).includes(analysisType)
+            ) {
+                throw new ValidationError('INVALID_ANALYSIS_TYPE', 'Unknown analysis type')
+            }
+
             const service = new AnalysisService(
                 new AnalysisRepository(request.server.db),
                 storage,
@@ -180,9 +192,10 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             reply.hijack()
             const raw = reply.raw
 
-            // @fastify/cors never runs after hijack — add CORS headers manually
+            // @fastify/cors never runs after hijack — add CORS headers manually.
+            // Отражаем только origin из allowlist, как основной CORS-плагин
             const origin = request.headers.origin
-            if (origin) {
+            if (origin && allowedOrigins.includes(origin)) {
                 raw.setHeader('Access-Control-Allow-Origin', origin)
                 raw.setHeader('Access-Control-Allow-Credentials', 'true')
                 raw.setHeader('Vary', 'Origin')
@@ -196,10 +209,14 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const repo = new AnalysisRepository(request.server.db)
             const sub = createSubscriber()
             let closed = false
+            // Назначается один раз ниже, но finish() замыкается на неё раньше
+            // eslint-disable-next-line prefer-const
+            let timer: ReturnType<typeof setTimeout> | undefined
 
             const finish = (data: { status: string; analysisId: number }) => {
                 if (closed) return
                 closed = true
+                clearTimeout(timer)
                 sub.disconnect()
                 if (!raw.destroyed) {
                     raw.write(`data: ${JSON.stringify(data)}\n\n`)
@@ -246,7 +263,7 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 )
             }
 
-            const timer = setTimeout(
+            timer = setTimeout(
                 () => {
                     finish({ status: 'timeout', analysisId: numId })
                 },

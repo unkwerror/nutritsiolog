@@ -169,7 +169,7 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
       <div className="flex-1 min-w-0">
         <p className="font-sans text-sm text-white leading-snug truncate">{marker.name}</p>
         {marker.comment && (
-          <p className="font-sans text-[11px] text-white/30 mt-0.5 truncate">{marker.comment}</p>
+          <p className="font-sans text-[13px] text-white/55 mt-0.5 truncate">{marker.comment}</p>
         )}
       </div>
 
@@ -181,7 +181,7 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
             <span className="text-white/35 text-[11px] font-normal ml-1">{marker.unit}</span>
           )}
         </p>
-        <p className="font-sans text-[11px] text-white/25 mt-0.5">{formatRange(marker)}</p>
+        <p className="font-sans text-[13px] text-white/60 mt-0.5">{formatRange(marker)}</p>
       </div>
 
       {/* Arrow */}
@@ -268,7 +268,7 @@ function EditDrawer({ marker, form, saving, saveError, onChange, onSave, onClose
           <div className="mt-5 flex flex-col gap-4">
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="font-sans text-[10px] text-white/38 uppercase tracking-[0.14em] mb-1.5 block">
+                <label className="font-sans text-[12px] text-white/60 uppercase tracking-[0.14em] mb-1.5 block">
                   Значение
                 </label>
                 <input
@@ -276,32 +276,32 @@ function EditDrawer({ marker, form, saving, saveError, onChange, onSave, onClose
                   inputMode="decimal"
                   value={form.value}
                   onChange={(e) => onChange('value', e.target.value)}
-                  className="glass-input w-full px-4 py-3 text-sm rounded-xl"
+                  className="glass-input w-full px-4 py-3 text-base rounded-xl"
                   placeholder="0.0"
                 />
               </div>
               <div className="w-28">
-                <label className="font-sans text-[10px] text-white/38 uppercase tracking-[0.14em] mb-1.5 block">
+                <label className="font-sans text-[12px] text-white/60 uppercase tracking-[0.14em] mb-1.5 block">
                   Единица
                 </label>
                 <input
                   type="text"
                   value={form.unit}
                   onChange={(e) => onChange('unit', e.target.value)}
-                  className="glass-input w-full px-4 py-3 text-sm rounded-xl"
+                  className="glass-input w-full px-4 py-3 text-base rounded-xl"
                   placeholder="мкг/л"
                 />
               </div>
             </div>
 
             <div>
-              <label className="font-sans text-[10px] text-white/38 uppercase tracking-[0.14em] mb-1.5 block">
+              <label className="font-sans text-[12px] text-white/60 uppercase tracking-[0.14em] mb-1.5 block">
                 Комментарий
               </label>
               <textarea
                 value={form.comment}
                 onChange={(e) => onChange('comment', e.target.value)}
-                className="glass-input w-full px-4 py-3 text-sm rounded-xl resize-none"
+                className="glass-input w-full px-4 py-3 text-base rounded-xl resize-none"
                 rows={3}
                 placeholder="Добавьте заметку к этому маркеру…"
               />
@@ -428,21 +428,21 @@ function AddMarkerPanel({ onAdd }: { onAdd: (p: NewMarkerPayload) => Promise<voi
             >
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[1.4fr_1fr]">
                 <input
-                  className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                  className="glass-input w-full rounded-xl px-3.5 py-2.5 text-base"
                   placeholder="Маркер (напр. Магний)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
                 <div className="flex gap-2.5">
                   <input
-                    className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                    className="glass-input w-full rounded-xl px-3.5 py-2.5 text-base"
                     placeholder="Значение"
                     inputMode="decimal"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                   />
                   <input
-                    className="glass-input w-24 rounded-xl px-3.5 py-2.5 text-sm"
+                    className="glass-input w-24 rounded-xl px-3.5 py-2.5 text-base"
                     placeholder="ед."
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
@@ -471,7 +471,7 @@ function AddMarkerPanel({ onAdd }: { onAdd: (p: NewMarkerPayload) => Promise<voi
                   ))}
                 </div>
                 <input
-                  className="glass-input min-w-[140px] flex-1 rounded-xl px-3.5 py-2.5 text-sm"
+                  className="glass-input min-w-[140px] flex-1 rounded-xl px-3.5 py-2.5 text-base"
                   placeholder="Комментарий (необязательно)"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -581,6 +581,12 @@ export default function AnalysisDetailPage({ params }: PageProps) {
 
       if (editForm.unit.trim() !== (editingMarker.unit ?? '')) body.unit = editForm.unit.trim()
       if (editForm.comment.trim() !== (editingMarker.comment ?? '')) body.comment = editForm.comment.trim()
+
+      // Ничего не изменилось — просто закрываем без запроса.
+      if (Object.keys(body).length === 0) {
+        closeEdit()
+        return
+      }
 
       const updated = await apiRequest<Marker>(
         `/api/v1/analysis/${analysisId}/markers/${markerId}`,
@@ -736,7 +742,7 @@ export default function AnalysisDetailPage({ params }: PageProps) {
                   <h2 className="font-sans text-[10px] tracking-[0.24em] uppercase text-white/38">
                     {section}
                   </h2>
-                  <span className="font-sans text-[10px] text-white/22">{markers.length}</span>
+                  <span className="font-sans text-[12px] text-white/45">{markers.length}</span>
                 </div>
 
                 {/* Rows */}
@@ -757,7 +763,7 @@ export default function AnalysisDetailPage({ params }: PageProps) {
 
         {/* Footer hint */}
         {groupedMarkers.length > 0 && (
-          <p className="font-sans text-[11px] text-white/20 text-center mt-12">
+          <p className="font-sans text-[13px] text-white/50 text-center mt-12">
             Нажмите на маркер, чтобы отредактировать значение
           </p>
         )}

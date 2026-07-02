@@ -83,7 +83,7 @@ export function Input({ theme = 'glass', className = '', style = {}, ...rest }: 
       style={{
         width: '100%',
         padding: '0.875rem 1rem',
-        fontSize: '0.9375rem',
+        fontSize: '1rem', // ≥16px — iOS Safari не зумит поле при фокусе
         fontFamily: 'var(--font-sans)',
         borderRadius: 'var(--radius-sm)',
         ...style,

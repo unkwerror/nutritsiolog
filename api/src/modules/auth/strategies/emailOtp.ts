@@ -7,14 +7,13 @@ const RATE_TTL_SEC = 15 * 60
 const MAX_REQUESTS = 3
 const MAX_ATTEMPTS = 5
 
-type OtpData = { code: string; attempts: number }
-
 function generateCode(): string {
     return String(Math.floor(100000 + Math.random() * 900000))
 }
 
 const otpKey = (id: string) => `otp:${id}`
 const rateKey = (id: string) => `otp_rate:${id}`
+const attemptsKey = (id: string) => `otp_attempts:${id}`
 
 export async function sendOtp(email: string): Promise<void> {
     const count = await redis.incr(rateKey(email))
@@ -24,59 +23,44 @@ export async function sendOtp(email: string): Promise<void> {
     }
 
     const code = generateCode()
-    await redis.setex(
-        otpKey(email),
-        OTP_TTL_SEC,
-        JSON.stringify({ code, attempts: 0 } satisfies OtpData)
-    )
+    // Новый код обнуляет счётчик попыток
+    await redis.del(attemptsKey(email))
+    await redis.setex(otpKey(email), OTP_TTL_SEC, code)
 
     await sendOtpEmail(email, code)
 }
 
-// Проверяет код и удаляет его (финальное потребление)
-export async function checkOtp(email: string, code: string): Promise<boolean> {
-    const key = otpKey(email)
-    const raw = await redis.get(key)
-    if (!raw) return false
-
-    const data = JSON.parse(raw) as OtpData
-
-    // Check code BEFORE incrementing attempts so the last allowed attempt works
-    if (data.code === code) {
-        await redis.del(key)
-        return true
-    }
-
-    data.attempts++
-    if (data.attempts >= MAX_ATTEMPTS) {
-        await redis.del(key)
+// Атомарный учёт попыток через INCR: параллельные verify-запросы не могут
+// обойти лимит (раньше read-modify-write через GET/SETEX давал гонку),
+// а TTL кода при неудачной попытке больше не продлевается.
+async function registerAttempt(email: string): Promise<boolean> {
+    const attempts = await redis.incr(attemptsKey(email))
+    if (attempts === 1) await redis.expire(attemptsKey(email), OTP_TTL_SEC)
+    if (attempts > MAX_ATTEMPTS) {
+        await redis.del(otpKey(email))
         return false
     }
+    return true
+}
 
-    await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
+// Проверяет код и удаляет его (финальное потребление)
+export async function checkOtp(email: string, code: string): Promise<boolean> {
+    if (!(await registerAttempt(email))) return false
+
+    const stored = await redis.get(otpKey(email))
+    if (stored === null) return false
+
+    if (stored === code) {
+        await redis.del(otpKey(email), attemptsKey(email))
+        return true
+    }
     return false
 }
 
 // Проверяет код без удаления — для verify-otp у незарегистрированных юзеров
-// Инкрементирует attempts (защита от брутфорса), но оставляет код в Redis
 export async function peekOtp(email: string, code: string): Promise<boolean> {
-    const key = otpKey(email)
-    const raw = await redis.get(key)
-    if (!raw) return false
+    if (!(await registerAttempt(email))) return false
 
-    const data = JSON.parse(raw) as OtpData
-
-    if (data.code === code) {
-        await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
-        return true
-    }
-
-    data.attempts++
-    if (data.attempts >= MAX_ATTEMPTS) {
-        await redis.del(key)
-        return false
-    }
-
-    await redis.setex(key, OTP_TTL_SEC, JSON.stringify(data))
-    return false
+    const stored = await redis.get(otpKey(email))
+    return stored !== null && stored === code
 }

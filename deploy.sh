@@ -37,7 +37,7 @@ echo "==> Installing frontend dependencies..."
 npm ci
 
 echo "==> Building frontend..."
-NEXT_PUBLIC_API_URL=https://api.nutrtisiolog.ru npm run build
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://api.nutrtisiolog.ru}" npm run build
 
 echo "==> Restarting processes..."
 cd "$APP_DIR"

@@ -4,7 +4,7 @@
 // with parallax sculptures + gold motes, marquee, scroll reveals, vector
 // ornaments and a haloed CTA. Visual-only (no API).
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Button, Chip, GlassCard } from '@/components/ds/primitives'
 import { Reveal } from '@/components/ds/AppCommon'
 
@@ -122,9 +122,13 @@ function HeroNav() {
   )
 }
 
+type MoteSpec = { left: string; size: string; dur: string; delay: string; dx: string; mo: string }
+
 function HeroMotes() {
-  const motes = useMemo(
-    () =>
+  // Случайные позиции считаем только на клиенте — иначе hydration mismatch.
+  const [motes, setMotes] = useState<MoteSpec[]>([])
+  useEffect(() => {
+    setMotes(
       Array.from({ length: 22 }).map(() => ({
         left: `${(2 + Math.random() * 96).toFixed(1)}%`,
         size: (3 + Math.random() * 5).toFixed(1),
@@ -132,9 +136,9 @@ function HeroMotes() {
         delay: (-Math.random() * 38).toFixed(1),
         dx: `${((Math.random() * 2 - 1) * 90).toFixed(0)}px`,
         mo: (0.4 + Math.random() * 0.5).toFixed(2),
-      })),
-    []
-  )
+      }))
+    )
+  }, [])
   return (
     <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 6 }}>
       {motes.map((m, i) => {
@@ -365,6 +369,11 @@ export default function LandingPage() {
   const [loaded, setLoaded] = useState(false)
   const [start, setStart] = useState(false)
 
+  // Прелоадер показываем один раз за сессию — при повторном визите пропускаем.
+  useEffect(() => {
+    if (sessionStorage.getItem('seenIntro')) setLoaded(true)
+  }, [])
+
   useEffect(() => {
     if (!loaded) return
     const t = setTimeout(() => setStart(true), 80)
@@ -389,7 +398,14 @@ export default function LandingPage() {
 
   return (
     <main>
-      {!loaded && <Preloader onDone={() => setLoaded(true)} />}
+      {!loaded && (
+        <Preloader
+          onDone={() => {
+            sessionStorage.setItem('seenIntro', '1')
+            setLoaded(true)
+          }}
+        />
+      )}
       <Hero start={start} />
       <Marquee />
       <How />

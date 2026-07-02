@@ -33,7 +33,9 @@ const MeSchema = z.object({
 
 const REFRESH_TTL_SEC = 30 * 24 * 3600
 const ACCESS_TTL = '15m'
-const REFRESH_COOKIE_PATH = '/api/v1/auth/refresh'
+// Путь покрывает и /auth/refresh, и /auth/logout — иначе logout не видит куку
+// и не может отозвать refresh-токен в Redis (он оставался валидным 30 дней)
+const REFRESH_COOKIE_PATH = '/api/v1/auth'
 
 function buildTokens(
     fastify: Parameters<FastifyPluginAsyncZod>[0],
@@ -193,10 +195,10 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 throw new UnauthorizedError('UNAUTHORIZED')
             }
 
-            const userId = await redis.get(`refresh:${payload.jti}`)
+            // GETDEL атомарно: два параллельных refresh с одной кукой не могут
+            // оба пройти проверку и породить две независимые refresh-цепочки
+            const userId = await redis.getdel(`refresh:${payload.jti}`)
             if (!userId) throw new UnauthorizedError('UNAUTHORIZED')
-
-            await redis.del(`refresh:${payload.jti}`)
 
             const {
                 accessToken,

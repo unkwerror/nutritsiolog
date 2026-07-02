@@ -159,8 +159,10 @@ export default function QuestionnairePage() {
         symptoms: form.symptoms,
         medications: form.medications || undefined,
         supplements: form.supplements || undefined,
-        cycleStatus: form.cycleStatus || undefined,
-        pms: form.pms || undefined,
+        // Женские поля не отправляем, если пол не «женский» (могли остаться
+        // в стейте после смены пола).
+        cycleStatus: form.gender === 'female' ? form.cycleStatus || undefined : undefined,
+        pms: form.gender === 'female' ? form.pms || undefined : undefined,
       }
       await apiRequest('/api/v1/questionnaire', { method: 'POST', body: JSON.stringify(body) })
       setSubmitted(true)
