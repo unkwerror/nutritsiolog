@@ -32,11 +32,9 @@ app.register(helmet, { contentSecurityPolicy: false })
 const allowedOrigins = config.CORS_ORIGIN.split(',').map((s: string) => s.trim())
 app.register(cors, {
     origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            cb(null, true)
-        } else {
-            cb(new Error('CORS not allowed'), false)
-        }
+        // Чужой origin — просто не отдаём CORS-заголовки (браузер заблокирует сам).
+        // Error здесь превращал каждый такой запрос в 500 в логах.
+        cb(null, !origin || allowedOrigins.includes(origin))
     },
     credentials: true,
     // По умолчанию @fastify/cors разрешает только GET,HEAD,POST — без этого

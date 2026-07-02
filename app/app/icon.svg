@@ -1,0 +1,57 @@
+<svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Нутрициолог">
+  <defs>
+    <linearGradient id="mgold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff4d5"></stop>
+      <stop offset="0.5" stop-color="#ffe692"></stop>
+      <stop offset="1" stop-color="#d4a020"></stop>
+    </linearGradient>
+  </defs>
+
+  
+  <circle cx="120" cy="120" r="106" stroke="url(#mgold)" stroke-width="1.4" opacity="0.55"></circle>
+  <circle cx="120" cy="120" r="99" stroke="#ffe692" stroke-width="0.7" opacity="0.32"></circle>
+
+  
+  <g stroke="url(#mgold)" stroke-width="1.2" opacity="0.7" stroke-linecap="round" fill="none">
+    <path d="M120 30 L120 16"></path>
+    <path d="M120 22 C115 20 112 16 112 11 C117 12 120 16 120 21"></path>
+    <path d="M120 22 C125 20 128 16 128 11 C123 12 120 16 120 21"></path>
+  </g>
+
+  
+  <g fill="url(#mgold)">
+    
+    <rect x="87" y="90" width="13" height="64"></rect>
+    <path d="M80 88 h27 v5 c-7 1 -20 1 -27 0 z"></path>
+    <path d="M80 156 h27 v-5 c-7 -1 -20 -1 -27 0 z"></path>
+    
+    <rect x="140" y="90" width="13" height="64"></rect>
+    <path d="M133 88 h27 v5 c-7 1 -20 1 -27 0 z"></path>
+    <path d="M133 156 h27 v-5 c-7 -1 -20 -1 -27 0 z"></path>
+    
+    <path d="M100 117 h40 v3 c-13 1.5 -27 1.5 -40 0 z"></path>
+    <path d="M100 123 h40 v-3 c-13 -1.5 -27 -1.5 -40 0 z"></path>
+  </g>
+
+  
+  <g stroke="url(#mgold)" stroke-width="1.2" opacity="0.85" fill="none" stroke-linecap="round">
+    
+    <path d="M120 178 C108 176 96 172 88 162"></path>
+    <path d="M112 176 C110 171 110 166 113 162"></path>
+    <path d="M104 173 C101 168 100 163 103 159"></path>
+    <path d="M96 169 C92 165 90 160 92 155"></path>
+    
+    <path d="M120 178 C132 176 144 172 152 162"></path>
+    <path d="M128 176 C130 171 130 166 127 162"></path>
+    <path d="M136 173 C139 168 140 163 137 159"></path>
+    <path d="M144 169 C148 165 150 160 148 155"></path>
+  </g>
+  <g fill="url(#mgold)" opacity="0.85">
+    
+    <path d="M111 161 q4 -3 7 0 q-4 3 -7 0 z"></path>
+    <path d="M129 161 q-4 -3 -7 0 q4 3 7 0 z"></path>
+  </g>
+
+  
+  <circle cx="120" cy="185" r="2" fill="#ffe692"></circle>
+</svg>
