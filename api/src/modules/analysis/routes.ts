@@ -71,6 +71,7 @@ const MarkerAddSchema = z.object({
 
 const MarkerEditSchema = z.object({
     value: z.number().nullable().optional(),
+    valueText: z.string().nullable().optional(),
     unit: z.string().nullable().optional(),
     referenceMin: z.number().nullable().optional(),
     referenceMax: z.number().nullable().optional(),

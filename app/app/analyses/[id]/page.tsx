@@ -405,15 +405,15 @@ function EditDrawer({ marker, form, saving, saveError, onChange, onSave, onClose
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="font-sans text-[12px] text-white/60 uppercase tracking-[0.14em] mb-1.5 block">
-                  Значение
+                  {marker.value === null && marker.valueText !== null ? 'Результат' : 'Значение'}
                 </label>
                 <input
                   type="text"
-                  inputMode="decimal"
+                  inputMode={marker.value === null && marker.valueText !== null ? 'text' : 'decimal'}
                   value={form.value}
                   onChange={(e) => onChange('value', e.target.value)}
                   className="glass-input w-full px-4 py-3 text-base rounded-xl"
-                  placeholder="0.0"
+                  placeholder={marker.value === null && marker.valueText !== null ? 'напр. жёлтый' : '0.0'}
                 />
               </div>
               <div className="w-28">
@@ -719,7 +719,7 @@ export default function AnalysisDetailPage({ params }: PageProps) {
 
   function openEdit(m: Marker) {
     setEditingMarker(m)
-    setEditForm({ value: m.value ?? '', unit: m.unit ?? '', comment: m.comment ?? '' })
+    setEditForm({ value: m.value ?? m.valueText ?? '', unit: m.unit ?? '', comment: m.comment ?? '' })
     setSaveError(null)
   }
 
@@ -739,12 +739,17 @@ export default function AnalysisDetailPage({ params }: PageProps) {
     setSaving(true)
     setSaveError(null)
     try {
-      const body: { value?: number | null; unit?: string; comment?: string } = {}
+      const body: { value?: number | null; valueText?: string | null; unit?: string; comment?: string } = {}
 
+      // Текстовый маркер (например «Цвет», «Нитриты») редактируем как текст,
+      // числовой — как число
+      const isText = editingMarker.value === null && editingMarker.valueText !== null
       const rawValue = editForm.value.trim()
-      const prevValue = editingMarker.value ?? ''
+      const prevValue = (isText ? editingMarker.valueText : editingMarker.value) ?? ''
       if (rawValue !== prevValue) {
-        if (rawValue === '') {
+        if (isText) {
+          body.valueText = rawValue === '' ? null : rawValue
+        } else if (rawValue === '') {
           body.value = null
         } else {
           const n = Number(rawValue.replace(',', '.'))

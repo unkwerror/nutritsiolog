@@ -629,6 +629,22 @@ function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
     })
   }
 
+  const [reprocId, setReprocId] = useState<number | null>(null)
+  const [sentReproc, setSentReproc] = useState<number[]>([])
+  async function reprocess(id: number) {
+    if (reprocId !== null) return
+    setReprocId(id)
+    setFileErr(null)
+    try {
+      await apiRequest(`/api/v1/admin/analyses/${id}/reprocess`, { method: 'POST' })
+      setSentReproc((s) => [...s, id])
+    } catch (e: unknown) {
+      setFileErr(e instanceof Error ? e.message : 'Не удалось перезапустить распознавание')
+    } finally {
+      setReprocId(null)
+    }
+  }
+
   if (analyses.length === 0) return <Empty text="Пользователь не загружал анализы" />
   const allMarkers = analyses.flatMap((a) => a.markers)
   return (
@@ -680,6 +696,23 @@ function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
               </svg>
               {loadingId === a.id ? '…' : 'Файл'}
             </button>
+            {sentReproc.includes(a.id) ? (
+              <span className="shrink-0 text-[12px]" style={{ color: 'rgba(255,230,146,0.8)' }}>в очереди</span>
+            ) : (
+              <button
+                onClick={() => void reprocess(a.id)}
+                disabled={reprocId === a.id}
+                title="Перераспознать (заменит текущие маркеры)"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 h-8 text-[12px]"
+                style={{ color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.03)', cursor: reprocId === a.id ? 'default' : 'pointer' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M23 4v6h-6M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {reprocId === a.id ? '…' : 'Заново'}
+              </button>
+            )}
           </li>
         ))}
       </ul>

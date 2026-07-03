@@ -28,6 +28,7 @@ type CreateAnalysisOptions = {
 
 type MarkerEditInput = {
     value?: number | null
+    valueText?: string | null
     unit?: string | null
     referenceMin?: number | null
     referenceMax?: number | null
@@ -265,9 +266,9 @@ export class AnalysisService {
                             ? String(input.value)
                             : null
                         : existing.value,
-                // Текстовый результат сохраняется между ревизиями (правки числового
-                // значения его не трогают)
-                valueText: existing.valueText,
+                // Текстовый результат: берём из правки, иначе переносим прежний
+                valueText:
+                    input.valueText !== undefined ? input.valueText : existing.valueText,
                 unit: input.unit !== undefined ? input.unit : existing.unit,
                 referenceMin:
                     input.referenceMin !== undefined

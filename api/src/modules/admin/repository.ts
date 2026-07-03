@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { analyses, questionnaireResponses, users } from '../../db/schema.js'
+import { analyses, markers, questionnaireResponses, users } from '../../db/schema.js'
 
 type DB = PostgresJsDatabase
 
@@ -20,6 +20,37 @@ export class AdminRepository {
             .from(analyses)
             .where(eq(analyses.id, id))
         return row ?? null
+    }
+
+    // Данные для повторного распознавания анализа.
+    async findAnalysisForReprocess(id: number) {
+        const [row] = await this.db
+            .select({
+                fileKey: analyses.fileKey,
+                fileMimeType: analyses.fileMimeType,
+                analysisType: analyses.analysisType,
+                ocrProvider: analyses.ocrProvider,
+            })
+            .from(analyses)
+            .where(eq(analyses.id, id))
+        return row ?? null
+    }
+
+    // Готовим анализ к перераспознаванию (append-only 034): текущие маркеры
+    // уводим в историю (is_current=false), статус → pending. Новый прогон
+    // воркера вставит свежие маркеры как is_current=true (уникальный индекс
+    // партиальный по is_current=true, конфликта не будет).
+    async resetForReprocess(id: number) {
+        await this.db.transaction(async (tx) => {
+            await tx
+                .update(markers)
+                .set({ isCurrent: false })
+                .where(and(eq(markers.analysisId, id), eq(markers.isCurrent, true)))
+            await tx
+                .update(analyses)
+                .set({ status: 'pending', updatedAt: new Date() })
+                .where(eq(analyses.id, id))
+        })
     }
 
     /**

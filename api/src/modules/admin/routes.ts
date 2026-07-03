@@ -8,11 +8,13 @@ import { ProfileService } from '../profile/service.js'
 import { AdminRepository } from './repository.js'
 import { AdminService } from './service.js'
 import { MinioStorage } from '../analysis/infrastructure/storage.js'
+import { BullMQQueue } from '../analysis/infrastructure/queue.js'
 import { requireAdmin } from './guard.js'
 import { NotFoundError } from '../../core/errors.js'
 import { SearchUsersQuery, SearchUsersResponse, UserDetailResponse } from './schemas.js'
 
 const storage = new MinioStorage()
+const queue = new BullMQQueue()
 
 const IdParams = z.object({ id: z.uuid() })
 
@@ -133,6 +135,36 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 .header('Content-Disposition', `inline; filename="analysis-${request.params.id}"`)
                 .header('Cache-Control', 'private, max-age=60')
                 .send(buffer)
+        }
+    )
+
+    // Повторное распознавание анализа (только админ). Уводит текущие маркеры в
+    // историю и заново ставит файл в OCR-очередь — чтобы подхватить улучшения
+    // распознавания (например, текстовые поля) без повторной загрузки.
+    fastify.post(
+        '/admin/analyses/:id/reprocess',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({ id: z.coerce.number().int().positive() }),
+                response: { 200: z.object({ analysisId: z.number(), status: z.string() }) },
+            },
+        },
+        async (request, reply) => {
+            const repo = new AdminRepository(request.server.db)
+            const a = await repo.findAnalysisForReprocess(request.params.id)
+            if (!a) throw new NotFoundError('ANALYSIS_NOT_FOUND', 'Анализ не найден')
+            await repo.resetForReprocess(request.params.id)
+            await queue.add({
+                analysisId: request.params.id,
+                fileKey: a.fileKey,
+                mimeType: a.fileMimeType ?? 'application/pdf',
+                analysisType: a.analysisType ?? undefined,
+                ocrProvider: a.ocrProvider ?? undefined,
+            })
+            return reply.send({ analysisId: request.params.id, status: 'pending' })
         }
     )
 }
