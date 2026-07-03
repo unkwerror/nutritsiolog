@@ -69,8 +69,16 @@ const worker = new Worker<AnalysisJobData>(
 
         // Публикация статуса + процента выполнения (0–100) в SSE. Прогресс —
         // fire-and-forget: сбой Redis не должен ронять обработку.
-        const publish = (status: string, progress?: number) =>
-            redis
+        // Последний процент кладём в Redis-ключ, чтобы клиент, переоткрывший
+        // страницу в середине обработки, увидел актуальный прогресс сразу (иначе
+        // он ловит только редкие чекпоинты и бар «стоит» на 0%).
+        const publish = (status: string, progress?: number) => {
+            if (progress !== undefined) {
+                redis
+                    .set(`analysis:progress:${analysisId}`, String(progress), 'EX', 3600)
+                    .catch((e: Error) => log.warn({ err: e }, 'Failed to store progress'))
+            }
+            return redis
                 .publish(
                     `analysis:${analysisId}`,
                     JSON.stringify(
@@ -80,6 +88,7 @@ const worker = new Worker<AnalysisJobData>(
                     )
                 )
                 .catch((pubErr: Error) => log.warn({ err: pubErr }, 'Failed to publish status'))
+        }
 
         // Mark as processing so UI badge updates
         await db

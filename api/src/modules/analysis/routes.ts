@@ -7,7 +7,7 @@ import { QuestionnaireRepository } from '../questionnaire/repository.js'
 import { MinioStorage } from './infrastructure/storage.js'
 import { BullMQQueue } from './infrastructure/queue.js'
 import { ValidationError } from '../../core/errors.js'
-import { createSubscriber } from '../../core/redis.js'
+import { createSubscriber, redis } from '../../core/redis.js'
 import { config } from '../../core/config.js'
 
 const storage = new MinioStorage()
@@ -278,10 +278,27 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 return
             }
 
-            // Send current status immediately so client knows we're connected
+            // Send current status immediately so client knows we're connected.
+            // Подтягиваем последний известный процент из Redis — иначе клиент,
+            // открывший страницу в середине обработки, видит бар на 0% до
+            // следующего редкого чекпоинта.
+            let initialProgress: number | undefined
+            try {
+                const stored = await redis.get(`analysis:progress:${numId}`)
+                if (stored !== null) {
+                    const n = Number(stored)
+                    if (Number.isFinite(n)) initialProgress = n
+                }
+            } catch {
+                /* прогресс не критичен — покажем без него */
+            }
             if (!raw.destroyed) {
                 raw.write(
-                    `data: ${JSON.stringify({ status: analysis.status, analysisId: numId })}\n\n`
+                    `data: ${JSON.stringify(
+                        initialProgress !== undefined
+                            ? { status: analysis.status, analysisId: numId, progress: initialProgress }
+                            : { status: analysis.status, analysisId: numId }
+                    )}\n\n`
                 )
             }
 
