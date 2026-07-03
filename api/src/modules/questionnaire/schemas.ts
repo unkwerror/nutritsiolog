@@ -7,7 +7,11 @@ export const QuestionnaireAnswersSchema = z.object({
     heightCm: z.number().int().min(100).max(250),
     weightKg: z.number().min(30).max(300),
     waistCm: z.number().int().min(40).max(200).optional(),
-    goal: z.enum(['lose_weight', 'maintain', 'gain', 'energy_sleep', 'gut_health']),
+    // Множественный выбор цели (может быть несколько)
+    goal: z
+        .array(z.enum(['lose_weight', 'maintain', 'gain', 'energy_sleep', 'gut_health']))
+        .min(1)
+        .max(5),
     // Step 2: Lifestyle
     activityLevel: z.enum(['sedentary', 'light', 'moderate', 'high']),
     sleepDuration: z.enum(['lt6', '6-7', '7-8', 'gt8']),

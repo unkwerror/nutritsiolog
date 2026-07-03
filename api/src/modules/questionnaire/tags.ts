@@ -55,8 +55,8 @@ export function computeTags(a: QuestionnaireAnswers): string[] {
     if (a.cycleStatus === 'menopause') tags.push('MENOPAUSE')
     if (a.pms === 'moderate' || a.pms === 'severe') tags.push('HORMONAL_IMBALANCE')
 
-    // Goal
-    tags.push(`GOAL_${a.goal.toUpperCase()}`)
+    // Goals (множественный выбор)
+    for (const g of a.goal) tags.push(`GOAL_${g.toUpperCase()}`)
 
     return [...new Set(tags)]
 }

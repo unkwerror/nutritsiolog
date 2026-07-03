@@ -49,7 +49,7 @@ export function getCatalogEntry(key: string): CatalogEntry | undefined {
     return CATALOG_BY_KEY.get(key)
 }
 
-function optimumFor(entry: CatalogEntry, gender: Gender | null): OptRange | null {
+export function optimumFor(entry: CatalogEntry, gender: Gender | null): OptRange | null {
     if (gender && entry.optimum[gender]) return entry.optimum[gender]!
     if (entry.optimum.all) return entry.optimum.all
     // Нет точного гендера, но есть раздельные нормы — берём осторожную объединённую
@@ -80,6 +80,39 @@ function outOfRange(value: number | null, opt: OptRange | null): 'low' | 'high' 
     if (opt.min !== null && value < opt.min) return 'low'
     if (opt.max !== null && value > opt.max) return 'high'
     return null
+}
+
+export type Severity = 'mild' | 'severe'
+
+// Порог «сильного» отклонения: во сколько ширин оптимального коридора значение
+// вышло за границу. > 1 ширины → severe (красный), иначе mild (жёлтый).
+const SEVERE_RATIO = 1.0
+
+// Насколько сильно значение вышло за оптимум. Масштаб отклонения — ширина
+// коридора нутрициолога (её нутрициолог задаёт как «нормальный разброс»);
+// если коридор односторонний или нулевой — берём саму границу либо значение.
+export function assessDeviation(
+    value: number | null,
+    opt: OptRange | null
+): { direction: 'low' | 'high'; severity: Severity } | null {
+    if (value === null || !Number.isFinite(value) || !opt) return null
+
+    let boundary: number
+    let direction: 'low' | 'high'
+    if (opt.min !== null && value < opt.min) {
+        boundary = opt.min
+        direction = 'low'
+    } else if (opt.max !== null && value > opt.max) {
+        boundary = opt.max
+        direction = 'high'
+    } else {
+        return null
+    }
+
+    const width = opt.min !== null && opt.max !== null ? Math.abs(opt.max - opt.min) : 0
+    const scale = width > 0 ? width : Math.abs(boundary) || Math.abs(value) || 1
+    const ratio = Math.abs(value - boundary) / scale
+    return { direction, severity: ratio > SEVERE_RATIO ? 'severe' : 'mild' }
 }
 
 // Оценка значения по СОБСТВЕННОМУ оптимуму (решение 032). Если у маркера в

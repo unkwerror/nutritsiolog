@@ -5,23 +5,30 @@ import { useRouter } from 'next/navigation'
 import { apiRequest, getAccessToken, API_BASE } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, Icon } from '@/components/ds/AppCommon'
-import { Button, Spinner, StatusBadge } from '@/components/ds/primitives'
+import { Button, StatusBadge } from '@/components/ds/primitives'
 
 const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png']
 const MAX_FILES = 5
 const MAX_SIZE_MB = 10
 
+// Единая шкала прогресса 0–100 объединяет две фазы:
+//  0–35%  — байтовая загрузка файла (XHR upload progress)
+//  35–100% — распознавание на сервере (SSE, прогресс воркера 0–100 → 35–97)
+const UPLOAD_CEIL = 35
+
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type PendingFile = { file: File; id: string; error?: string }
+type RowStatus = AnalysisStatus | 'uploading' | 'error'
 type UploadRow = {
   id: string
   fileName: string
   analysisId: number | null
-  status: AnalysisStatus | 'uploading' | 'error'
+  status: RowStatus
+  progress: number
   message?: string
 }
 type UploadResponse = { analysisId: number; status: string }
-type SseEvent = { status: AnalysisStatus; analysisId: number }
+type SseEvent = { status: AnalysisStatus; analysisId: number; progress?: number }
 
 function uid(): string {
   return Math.random().toString(36).slice(2)
@@ -36,14 +43,86 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
-function inFlight(s: UploadRow['status']): boolean {
+function inFlight(s: RowStatus): boolean {
   return s === 'uploading' || s === 'pending' || s === 'processing'
 }
+function phaseLabel(s: RowStatus): string {
+  if (s === 'uploading') return 'Загрузка'
+  if (s === 'pending') return 'В очереди'
+  return 'Распознавание'
+}
+// Потолок прогресса для фазы: пока не пришёл следующий чекпоинт, бар плавно
+// «подползает» к потолку, но не перепрыгивает его (чтобы 100% был только на done)
+function ceilFor(s: RowStatus): number {
+  switch (s) {
+    case 'uploading':
+      return UPLOAD_CEIL
+    case 'pending':
+      return 42
+    case 'processing':
+      return 97
+    default:
+      return 100
+  }
+}
 
-// SSE-стрим статуса; при любом сбое (401 на протухшем токене, обрыв прокси,
-// стрим закрылся без терминального события) — fallback на поллинг GET /analysis/:id.
-// Раньше сбой стрима оставлял строку крутиться вечно без ошибки.
-async function watchAnalysis(analysisId: number, signal: AbortSignal, onStatus: (s: AnalysisStatus) => void): Promise<void> {
+// Загрузка через XHR ради прогресса по байтам (fetch его не даёт). На 401
+// откатываемся к apiRequest (там single-flight refresh токена) без прогресса.
+function uploadWithProgress(file: File, onProgress: (fraction: number) => void): Promise<UploadResponse> {
+  return new Promise((resolve, reject) => {
+    const token = getAccessToken()
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}/api/v1/analysis/upload`)
+    xhr.withCredentials = true
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total)
+    }
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        const form = new FormData()
+        form.append('file', file)
+        apiRequest<UploadResponse>('/api/v1/analysis/upload', { method: 'POST', body: form })
+          .then(resolve)
+          .catch(reject)
+        return
+      }
+      try {
+        const data = JSON.parse(xhr.responseText) as UploadResponse & {
+          error?: { message?: string }
+          message?: string
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data)
+        } else {
+          const msg =
+            data?.error?.message ??
+            data?.message ??
+            (xhr.status === 413
+              ? 'Файл слишком большой — максимум 10 МБ'
+              : `Ошибка сервера (HTTP ${xhr.status})`)
+          reject(new Error(msg))
+        }
+      } catch {
+        reject(new Error(`Ошибка сервера (HTTP ${xhr.status})`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Не удалось загрузить файл'))
+    xhr.onabort = () => reject(new DOMException('aborted', 'AbortError'))
+
+    const form = new FormData()
+    form.append('file', file)
+    xhr.send(form)
+  })
+}
+
+// SSE-стрим статуса + прогресса; при любом сбое — fallback на поллинг.
+async function watchAnalysis(
+  analysisId: number,
+  signal: AbortSignal,
+  onUpdate: (status: AnalysisStatus, progress?: number) => void
+): Promise<void> {
   try {
     const token = getAccessToken()
     const res = await fetch(`${API_BASE}/api/v1/analysis/${analysisId}/events`, {
@@ -64,7 +143,7 @@ async function watchAnalysis(analysisId: number, signal: AbortSignal, onStatus: 
         if (!line.startsWith('data: ')) continue
         try {
           const evt = JSON.parse(line.slice(6)) as SseEvent
-          onStatus(evt.status)
+          onUpdate(evt.status, evt.progress)
           if (evt.status === 'done' || evt.status === 'failed') return
         } catch {
           /* skip */
@@ -75,13 +154,13 @@ async function watchAnalysis(analysisId: number, signal: AbortSignal, onStatus: 
     if (signal.aborted) return
   }
 
-  // Fallback-поллинг: ~6 минут по 4 секунды
+  // Fallback-поллинг: ~6 минут по 4 секунды (без точного прогресса — бар подползает)
   for (let i = 0; i < 90 && !signal.aborted; i++) {
     await new Promise((r) => setTimeout(r, 4000))
     if (signal.aborted) return
     try {
       const a = await apiRequest<{ status: AnalysisStatus }>(`/api/v1/analysis/${analysisId}`)
-      onStatus(a.status)
+      onUpdate(a.status)
       if (a.status === 'done' || a.status === 'failed') return
     } catch {
       /* временный сбой — продолжаем поллинг */
@@ -101,14 +180,44 @@ export default function UploadPage() {
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Целевой прогресс на строку — куда бар должен доехать (задаётся загрузкой/SSE)
+  const targetsRef = useRef<Map<string, number>>(new Map())
 
   useEffect(() => {
     if (!authLoading && !user && !getAccessToken()) router.replace('/auth')
   }, [authLoading, user, router])
 
-  // Обрываем SSE/поллинг при уходе со страницы — иначе до 5 открытых стримов
-  // продолжают дёргать setState на размонтированном компоненте
+  // Обрываем SSE/поллинг при уходе со страницы
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  // Анимация прогресс-баров: плавно тянем displayed → target и мягко «подползаем»
+  // к потолку фазы, чтобы бар всегда двигался и ощущался динамическим.
+  useEffect(() => {
+    if (!submitting) return
+    const iv = setInterval(() => {
+      setRows((prev) => {
+        let changed = false
+        const next = prev.map((r) => {
+          if (r.status === 'done') {
+            if (r.progress >= 100) return r
+            changed = true
+            return { ...r, progress: 100 }
+          }
+          if (r.status === 'error' || r.status === 'failed') return r
+          const cap = ceilFor(r.status)
+          const target = Math.min(Math.max(targetsRef.current.get(r.id) ?? 0, r.progress), cap)
+          const ease = (target - r.progress) * 0.14
+          const crawl = r.progress < cap - 0.5 ? 0.35 : 0
+          const advanced = Math.min(cap, r.progress + Math.max(ease, crawl))
+          if (advanced - r.progress < 0.05) return r
+          changed = true
+          return { ...r, progress: advanced }
+        })
+        return changed ? next : prev
+      })
+    }, 90)
+    return () => clearInterval(iv)
+  }, [submitting])
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
@@ -140,6 +249,11 @@ export default function UploadPage() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
   }, [])
 
+  const setTarget = useCallback((id: string, value: number) => {
+    const cur = targetsRef.current.get(id) ?? 0
+    targetsRef.current.set(id, Math.max(cur, value))
+  }, [])
+
   const handleSubmit = useCallback(async () => {
     if (!getAccessToken()) {
       router.replace('/auth')
@@ -149,20 +263,45 @@ export default function UploadPage() {
     if (valid.length === 0) return
     setSubmitting(true)
     setNotice(null)
-    setRows(valid.map((f) => ({ id: f.id, fileName: f.file.name, analysisId: null, status: 'uploading' as const })))
+    targetsRef.current.clear()
+    setRows(
+      valid.map((f) => ({
+        id: f.id,
+        fileName: f.file.name,
+        analysisId: null,
+        status: 'uploading' as const,
+        progress: 0,
+      }))
+    )
     setFiles([])
     const abort = new AbortController()
     abortRef.current = abort
     await Promise.all(
       valid.map(async (f) => {
         try {
-          const form = new FormData()
-          form.append('file', f.file)
-          const result = await apiRequest<UploadResponse>('/api/v1/analysis/upload', { method: 'POST', body: form })
-          updateRow(f.id, { analysisId: result.analysisId, status: (result.status as AnalysisStatus) ?? 'pending' })
-          await watchAnalysis(result.analysisId, abort.signal, (s) => updateRow(f.id, { status: s }))
+          const result = await uploadWithProgress(f.file, (frac) => {
+            // Байтовая загрузка → 0..35% общей шкалы
+            targetsRef.current.set(f.id, Math.min(UPLOAD_CEIL, frac * UPLOAD_CEIL))
+          })
+          setTarget(f.id, UPLOAD_CEIL)
+          updateRow(f.id, {
+            analysisId: result.analysisId,
+            status: (result.status as AnalysisStatus) ?? 'pending',
+          })
+          await watchAnalysis(result.analysisId, abort.signal, (s, p) => {
+            updateRow(f.id, { status: s })
+            if (typeof p === 'number') {
+              // Прогресс воркера 0..100 → 35..97% общей шкалы (done ставит 100)
+              const overall = s === 'done' ? 100 : UPLOAD_CEIL + (Math.min(100, Math.max(0, p)) / 100) * 62
+              setTarget(f.id, overall)
+            }
+          })
         } catch (err) {
-          updateRow(f.id, { status: 'error', message: err instanceof Error ? err.message : 'Не удалось загрузить файл' })
+          if (err instanceof DOMException && err.name === 'AbortError') return
+          updateRow(f.id, {
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Не удалось загрузить файл',
+          })
         }
       })
     )
@@ -173,7 +312,7 @@ export default function UploadPage() {
       /* профиль пересчитается при следующем открытии рекомендаций */
     }
     setSubmitting(false)
-  }, [files, router, updateRow])
+  }, [files, router, updateRow, setTarget])
 
   const validCount = files.filter((f) => !f.error).length
   const allDone = rows.length > 0 && rows.every((r) => !inFlight(r.status))
@@ -255,9 +394,14 @@ export default function UploadPage() {
                         {r.message && <span style={{ display: 'block', fontSize: 12, color: '#ff9a9a' }}>{r.message}</span>}
                       </span>
                       {inFlight(r.status) ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                          <Spinner size={12} />
-                          <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)' }}>{r.status === 'uploading' ? 'Загрузка…' : 'Распознавание…'}</span>
+                        <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, width: 128, flexShrink: 0 }}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                            <span>{phaseLabel(r.status)}</span>
+                            <span style={{ color: 'var(--gold)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(r.progress)}%</span>
+                          </span>
+                          <span style={{ width: '100%', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${r.progress}%`, borderRadius: 3, background: 'var(--gold)', transition: 'width .18s linear' }} />
+                          </span>
                         </span>
                       ) : (
                         <StatusBadge status={r.status === 'error' ? 'failed' : r.status} />

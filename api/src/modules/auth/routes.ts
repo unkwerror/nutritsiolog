@@ -31,8 +31,12 @@ const MeSchema = z.object({
     updatedAt: z.date(),
 })
 
-const REFRESH_TTL_SEC = 30 * 24 * 3600
-const ACCESS_TTL = '15m'
+// Держим пользователя залогиненным как можно дольше: refresh живёт год и
+// ротируется при каждом /auth/refresh — активная сессия «катится» вперёд и
+// практически не истекает. Access-токен на час, чтобы реже дёргать refresh.
+const REFRESH_TTL_DAYS = 365
+const REFRESH_TTL_SEC = REFRESH_TTL_DAYS * 24 * 3600
+const ACCESS_TTL = '1h'
 // Путь покрывает и /auth/refresh, и /auth/logout — иначе logout не видит куку
 // и не может отозвать refresh-токен в Redis (он оставался валидным 30 дней)
 const REFRESH_COOKIE_PATH = '/api/v1/auth'
@@ -48,7 +52,7 @@ function buildTokens(
     const jti = randomUUID()
     const refreshToken = fastify.jwt.sign(
         { id: user.id, email: user.email, jti },
-        { expiresIn: '30d' }
+        { expiresIn: `${REFRESH_TTL_DAYS}d` }
     )
     return { accessToken, refreshToken, jti }
 }

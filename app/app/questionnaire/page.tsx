@@ -14,7 +14,7 @@ type Form = {
   heightCm: string
   weightKg: string
   waistCm: string
-  goal: string
+  goal: string[]
   activityLevel: string
   sleepDuration: string
   sleepQuality: string
@@ -33,7 +33,7 @@ type Form = {
 }
 
 const INIT: Form = {
-  gender: '', dateOfBirth: '', heightCm: '', weightKg: '', waistCm: '', goal: '',
+  gender: '', dateOfBirth: '', heightCm: '', weightKg: '', waistCm: '', goal: [],
   activityLevel: '', sleepDuration: '', sleepQuality: '', bedtime: '',
   mealsPerDay: '', dinnerToSleep: '', waterLiters: '', caffeine: '', smoking: '', emotionalEating: '',
   symptoms: [],
@@ -71,6 +71,7 @@ const STEP_REQUIRED: (keyof Form)[][] = [
 function isStepComplete(form: Form, stepIdx: number): boolean {
   return (STEP_REQUIRED[stepIdx] ?? []).every((k) => {
     const v = form[k]
+    if (Array.isArray(v)) return v.length > 0
     return typeof v === 'string' ? v.trim() !== '' : true
   })
 }
@@ -113,8 +114,8 @@ export default function QuestionnairePage() {
       .then((r) => {
         if (!r?.answers) return
         const a = r.answers
-        const stringFields: Exclude<keyof Form, 'symptoms'>[] = [
-          'gender', 'dateOfBirth', 'heightCm', 'weightKg', 'waistCm', 'goal',
+        const stringFields: Exclude<keyof Form, 'symptoms' | 'goal'>[] = [
+          'gender', 'dateOfBirth', 'heightCm', 'weightKg', 'waistCm',
           'activityLevel', 'sleepDuration', 'sleepQuality', 'bedtime',
           'mealsPerDay', 'dinnerToSleep', 'waterLiters', 'caffeine', 'smoking', 'emotionalEating',
           'medications', 'supplements', 'cycleStatus', 'pms',
@@ -126,6 +127,10 @@ export default function QuestionnairePage() {
             if (v != null) next[k] = String(v)
           }
           if (Array.isArray(a['symptoms'])) next.symptoms = a['symptoms'].filter((s): s is string => typeof s === 'string')
+          // goal — множественный выбор; старые анкеты хранили одну строку
+          const g = a['goal']
+          if (Array.isArray(g)) next.goal = g.filter((x): x is string => typeof x === 'string')
+          else if (typeof g === 'string' && g) next.goal = [g]
           return next
         })
       })
@@ -137,6 +142,9 @@ export default function QuestionnairePage() {
   }
   function toggleSymptom(v: string) {
     setForm((p) => ({ ...p, symptoms: p.symptoms.includes(v) ? p.symptoms.filter((s) => s !== v) : [...p.symptoms, v] }))
+  }
+  function toggleGoal(v: string) {
+    setForm((p) => ({ ...p, goal: p.goal.includes(v) ? p.goal.filter((g) => g !== v) : [...p.goal, v] }))
   }
   function move(d: number) {
     setDir(d)
@@ -154,7 +162,7 @@ export default function QuestionnairePage() {
         heightCm: form.heightCm ? Number(form.heightCm) : undefined,
         weightKg: form.weightKg ? Number(form.weightKg) : undefined,
         waistCm: form.waistCm ? Number(form.waistCm) : undefined,
-        goal: form.goal || undefined,
+        goal: form.goal.length > 0 ? form.goal : undefined,
         activityLevel: form.activityLevel || undefined,
         sleepDuration: form.sleepDuration || undefined,
         sleepQuality: form.sleepQuality || undefined,
@@ -299,11 +307,11 @@ export default function QuestionnairePage() {
                       </Field>
                     </div>
                   </Q>
-                  <Q label="Главная цель *">
-                    <RadioGroup
+                  <Q label="Ваша цель * — можно выбрать несколько">
+                    <CheckboxRow
                       size="lg"
-                      value={form.goal}
-                      onChange={(v) => set('goal', v)}
+                      values={form.goal}
+                      onToggle={toggleGoal}
                       options={[
                         { value: 'lose_weight', label: 'Снизить вес' },
                         { value: 'maintain', label: 'Поддержать вес' },

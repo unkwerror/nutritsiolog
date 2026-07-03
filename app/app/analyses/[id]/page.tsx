@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
@@ -8,6 +8,22 @@ import { apiRequest, getAccessToken } from '@/lib/api'
 import { AppBackground, AppNav } from '@/components/ds/AppCommon'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+type MarkerRecommendation = {
+  summary: string | null
+  steps: string[]
+  foods: { add: string[]; avoid: string[] } | null
+  topics: string[]
+}
+
+type MarkerAssessment = {
+  status: 'normal' | 'mild' | 'severe'
+  direction: 'low' | 'high' | null
+  optimumMin: string | null
+  optimumMax: string | null
+  optimumSource: 'catalog' | 'lab' | null
+  recommendation: MarkerRecommendation | null
+}
 
 type Marker = {
   id: number
@@ -25,6 +41,9 @@ type Marker = {
   originalValue: string | null
   comment: string | null
   method: string | null
+  // Оценка по оптимумам нутрициолога (может отсутствовать у только что
+  // добавленного/отредактированного маркера до перезагрузки анализа)
+  assessment?: MarkerAssessment
 }
 
 type AnalysisDetail = {
@@ -80,8 +99,36 @@ function formatRange(m: Marker): string {
   return '—'
 }
 
+// Статус маркера: приоритет — оценка по оптимумам нутрициолога (решение 032),
+// fallback — флаг «вне нормы» из бланка (для только что добавленных маркеров).
+function markerStatus(m: Marker): 'normal' | 'mild' | 'severe' {
+  if (m.assessment) return m.assessment.status
+  return m.isOutOfRange ? 'mild' : 'normal'
+}
+
+function markerDirection(m: Marker): 'low' | 'high' | null {
+  return m.assessment ? m.assessment.direction : m.outOfRangeDirection
+}
+
+// mild — умеренное отклонение (жёлтый), severe — сильное (красный)
+const STATUS_COLOR: Record<'normal' | 'mild' | 'severe', string> = {
+  normal: 'rgba(255,255,255,0.9)',
+  mild: '#fbbf24',
+  severe: '#f87171',
+}
+
+// Оптимальный коридор нутрициолога, если он посчитан для маркера
+function formatOptimum(m: Marker): string | null {
+  const a = m.assessment
+  if (!a || a.optimumSource !== 'catalog') return null
+  if (a.optimumMin !== null && a.optimumMax !== null) return `${a.optimumMin}–${a.optimumMax}`
+  if (a.optimumMin !== null) return `≥${a.optimumMin}`
+  if (a.optimumMax !== null) return `≤${a.optimumMax}`
+  return null
+}
+
 function outOfRangeCount(markers: Marker[]): number {
-  return markers.filter((m) => m.isOutOfRange).length
+  return markers.filter((m) => markerStatus(m) !== 'normal').length
 }
 
 function pluralForm(n: number, one: string, few: string, many: string): string {
@@ -146,11 +193,20 @@ function StatusBadge({ status }: { status: AnalysisDetail['status'] }) {
 type MarkerRowProps = { marker: Marker; onClick: () => void }
 
 function MarkerRow({ marker, onClick }: MarkerRowProps) {
-  const oor = marker.isOutOfRange
-  const isHigh = marker.outOfRangeDirection === 'high'
-  const dotColor = oor ? (isHigh ? '#f87171' : '#fb923c') : marker.isEdited ? '#ffe692' : 'rgba(255,255,255,0.14)'
-  const valueColor = oor ? (isHigh ? '#f87171' : '#fb923c') : 'rgba(255,255,255,0.9)'
-  const rowBg = oor ? 'rgba(200,80,50,0.055)' : 'transparent'
+  const status = markerStatus(marker)
+  const dir = markerDirection(marker)
+  const oor = status !== 'normal'
+  const accent = STATUS_COLOR[status]
+  const dotColor = oor ? accent : marker.isEdited ? '#ffe692' : 'rgba(255,255,255,0.14)'
+  const valueColor = oor ? accent : 'rgba(255,255,255,0.9)'
+  const rowBg =
+    status === 'severe'
+      ? 'rgba(248,113,113,0.07)'
+      : status === 'mild'
+        ? 'rgba(251,191,36,0.06)'
+        : 'transparent'
+  const rangeLabel = formatOptimum(marker) ?? formatRange(marker)
+  const arrow = oor ? (dir === 'high' ? '↑' : dir === 'low' ? '↓' : '') : ''
 
   return (
     <motion.button
@@ -176,12 +232,13 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
       {/* Value + range */}
       <div className="shrink-0 text-right min-w-[5rem]">
         <p className="font-sans text-sm font-medium" style={{ color: valueColor }}>
+          {arrow && <span className="text-[11px] mr-0.5">{arrow}</span>}
           {marker.value ?? '—'}
           {marker.unit && (
             <span className="text-white/35 text-[11px] font-normal ml-1">{marker.unit}</span>
           )}
         </p>
-        <p className="font-sans text-[13px] text-white/60 mt-0.5">{formatRange(marker)}</p>
+        <p className="font-sans text-[13px] text-white/60 mt-0.5">{rangeLabel}</p>
       </div>
 
       {/* Arrow */}
@@ -255,14 +312,89 @@ function EditDrawer({ marker, form, saving, saveError, onChange, onSave, onClose
             </p>
           )}
 
-          {marker.isOutOfRange && (
-            <p
-              className="font-sans text-[11px] tracking-[0.06em] uppercase mb-4"
-              style={{ color: marker.outOfRangeDirection === 'high' ? '#f87171' : '#fb923c' }}
-            >
-              {marker.outOfRangeDirection === 'high' ? 'Выше нормы' : 'Ниже нормы'}
-            </p>
-          )}
+          {(() => {
+            const status = markerStatus(marker)
+            if (status === 'normal') return null
+            const dir = markerDirection(marker)
+            const accent = STATUS_COLOR[status]
+            const optimum = formatOptimum(marker)
+            const rec = marker.assessment?.recommendation ?? null
+            const statusLabel =
+              (status === 'severe' ? 'Сильное отклонение' : 'Умеренное отклонение') +
+              (dir === 'high' ? ' · выше оптимума' : dir === 'low' ? ' · ниже оптимума' : '')
+            return (
+              <div className="mb-4">
+                <p
+                  className="font-sans text-[11px] tracking-[0.06em] uppercase"
+                  style={{ color: accent }}
+                >
+                  {statusLabel}
+                </p>
+                {optimum && (
+                  <p className="font-sans text-[12px] text-white/45 mt-1">
+                    Оптимум нутрициолога:{' '}
+                    <span className="text-white/70">
+                      {optimum}
+                      {marker.unit ? ` ${marker.unit}` : ''}
+                    </span>
+                  </p>
+                )}
+
+                {rec && (rec.summary || rec.steps.length > 0 || rec.foods) && (
+                  <div
+                    className="mt-4 rounded-2xl p-4"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <p className="font-sans text-[11px] tracking-[0.14em] uppercase text-white/40 mb-2">
+                      Рекомендация
+                    </p>
+                    {rec.summary && (
+                      <p className="font-sans text-[14px] text-white/85 leading-relaxed">
+                        {rec.summary}
+                      </p>
+                    )}
+                    {rec.steps.length > 0 && (
+                      <ul className="mt-3 flex flex-col gap-1.5">
+                        {rec.steps.map((s, i) => (
+                          <li
+                            key={i}
+                            className="font-sans text-[13px] text-white/70 leading-snug flex gap-2"
+                          >
+                            <span style={{ color: '#ffe692' }}>•</span>
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {rec.foods && (rec.foods.add.length > 0 || rec.foods.avoid.length > 0) && (
+                      <div className="mt-3 flex flex-col gap-1.5">
+                        {rec.foods.add.length > 0 && (
+                          <p className="font-sans text-[13px] text-white/75 leading-snug">
+                            <span className="text-white/45">Добавить: </span>
+                            {rec.foods.add.join(', ')}
+                          </p>
+                        )}
+                        {rec.foods.avoid.length > 0 && (
+                          <p className="font-sans text-[13px] text-white/75 leading-snug">
+                            <span className="text-white/45">Убрать: </span>
+                            {rec.foods.avoid.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {rec.topics.length > 0 && (
+                      <p className="font-sans text-[12px] text-white/40 mt-3">
+                        См. в рекомендациях: {rec.topics.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Form fields */}
           <div className="mt-5 flex flex-col gap-4">
@@ -511,6 +643,11 @@ export default function AnalysisDetailPage({ params }: PageProps) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const refreshAnalysis = useCallback(async () => {
+    const data = await apiRequest<AnalysisDetail>(`/api/v1/analysis/${id}`)
+    setAnalysis(data)
+  }, [id])
+
   useEffect(() => {
     if (!getAccessToken()) {
       router.replace('/auth')
@@ -588,17 +725,13 @@ export default function AnalysisDetailPage({ params }: PageProps) {
         return
       }
 
-      const updated = await apiRequest<Marker>(
-        `/api/v1/analysis/${analysisId}/markers/${markerId}`,
-        { method: 'PATCH', body: JSON.stringify(body) },
-      )
-      // Append-only: сервер возвращает новую строку-ревизию с НОВЫМ id, поэтому
-      // заменяем по id редактируемого маркера (markerId), а не по updated.id
-      setAnalysis((prev) =>
-        prev
-          ? { ...prev, markers: prev.markers.map((m) => (m.id === markerId ? updated : m)) }
-          : prev,
-      )
+      await apiRequest<Marker>(`/api/v1/analysis/${analysisId}/markers/${markerId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      // Перечитываем анализ целиком: сервер пересчитывает оценку по оптимумам
+      // (статус/цвет/рекомендация) для новой ревизии маркера
+      await refreshAnalysis()
       closeEdit()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Ошибка сохранения')
@@ -609,11 +742,12 @@ export default function AnalysisDetailPage({ params }: PageProps) {
 
   async function handleAddMarker(payload: NewMarkerPayload) {
     if (!analysis) return
-    const created = await apiRequest<Marker>(`/api/v1/analysis/${analysis.id}/markers`, {
+    await apiRequest<Marker>(`/api/v1/analysis/${analysis.id}/markers`, {
       method: 'POST',
       body: JSON.stringify(payload),
     })
-    setAnalysis((prev) => (prev ? { ...prev, markers: [...prev.markers, created] } : prev))
+    // Перечитываем анализ, чтобы новый маркер получил оценку по оптимумам
+    await refreshAnalysis()
   }
 
   // Loading

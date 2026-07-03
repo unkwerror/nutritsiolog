@@ -400,7 +400,59 @@ export function generateSignals(
                 'Интервальное голодание 16:8 рассмотреть после 4–6 недель базы.',
             ],
             severity: 'info',
-            sources: ['questionnaire:GOAL_LOSE'],
+            sources: ['questionnaire:GOAL_LOSE_WEIGHT'],
+        })
+    }
+
+    if (tags.has('GOAL_ENERGY_SLEEP')) {
+        signals.push({
+            id: 'goal_energy_sleep',
+            category: 'Энергия и сон',
+            categoryKey: 'lifestyle',
+            title: 'Больше энергии и качественный сон',
+            text: 'Стабильная энергия строится на сахаре крови, железе и режиме сна.',
+            detail: [
+                'Завтрак с белком и жирами в первый час после пробуждения — ровный сахар весь день.',
+                'Магний глицинат 300–400 мг вечером, отбой до 23:00, тёплый свет за час до сна.',
+                'Проверьте железо/ферритин, витамин D и B12 — частые причины усталости.',
+            ],
+            severity: 'info',
+            sources: ['questionnaire:GOAL_ENERGY_SLEEP'],
+        })
+    }
+
+    if (tags.has('GOAL_GUT_HEALTH')) {
+        signals.push({
+            id: 'goal_gut_health',
+            category: 'Здоровье ЖКТ',
+            categoryKey: 'nutrition',
+            title: 'Здоровье кишечника',
+            text: 'Работа кишечника определяет усвоение нутриентов, иммунитет и настроение.',
+            detail: [
+                'Тщательно пережёвывайте, ешьте без спешки и гаджетов.',
+                'Клетчатка и ферментированные продукты ежедневно; пробиотики 5–10 млрд КОЕ.',
+                'Тест-исключение глютена и коровьей молочки на 4 недели при вздутии.',
+            ],
+            foods: { add: ['Квашеная капуста', 'Кефир (не коровий)', 'Зелень и овощи'] },
+            severity: 'info',
+            sources: ['questionnaire:GOAL_GUT_HEALTH'],
+        })
+    }
+
+    if (tags.has('GOAL_GAIN')) {
+        signals.push({
+            id: 'goal_gain',
+            category: 'Набор массы',
+            categoryKey: 'nutrition',
+            title: 'Набор мышечной массы',
+            text: 'Профицит калорий + белок + силовая нагрузка.',
+            detail: [
+                'Белок 1,6–2 г/кг веса в день, равномерно по приёмам.',
+                'Умеренный профицит 300–500 ккал за счёт качественных продуктов.',
+                'Силовые тренировки 3 раза в неделю, достаточный сон для восстановления.',
+            ],
+            severity: 'info',
+            sources: ['questionnaire:GOAL_GAIN'],
         })
     }
 

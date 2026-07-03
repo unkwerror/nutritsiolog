@@ -19,20 +19,26 @@ export class ApiRequestError extends Error {
 
 let _accessToken: string | null = null
 
+// Храним access-токен в localStorage (переживает закрытие вкладки/браузера) —
+// вместе с годовой refresh-кукой пользователь остаётся залогинен максимально долго.
 export function setAccessToken(token: string) {
   _accessToken = token
-  if (typeof window !== 'undefined') sessionStorage.setItem('accessToken', token)
+  if (typeof window !== 'undefined') localStorage.setItem('accessToken', token)
 }
 
 export function clearAccessToken() {
   _accessToken = null
-  if (typeof window !== 'undefined') sessionStorage.removeItem('accessToken')
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('accessToken')
+    sessionStorage.removeItem('accessToken') // подчистка старого хранилища
+  }
 }
 
 export function getAccessToken(): string | null {
   if (_accessToken) return _accessToken
   if (typeof window !== 'undefined') {
-    const stored = sessionStorage.getItem('accessToken')
+    // localStorage — основное; sessionStorage читаем для миграции старых сессий
+    const stored = localStorage.getItem('accessToken') ?? sessionStorage.getItem('accessToken')
     if (stored) { _accessToken = stored; return stored }
   }
   return null

@@ -2,6 +2,9 @@ import { fileTypeFromBuffer } from 'file-type'
 import { type StoragePort } from './infrastructure/storage.js'
 import { type QueuePort } from './infrastructure/queue.js'
 import { type AnalysisRepository } from './repository.js'
+import { type QuestionnaireRepository } from '../questionnaire/repository.js'
+import { assessMarkers, type AssessableMarker } from '../profile/assessment.js'
+import { type Gender } from '../profile/optimums.js'
 import { AnalysisNotFoundError, NothingUploadedError } from './errors.js'
 import {
     NotFoundError,
@@ -42,11 +45,22 @@ type MarkerAddInput = {
     outOfRangeDirection?: 'low' | 'high' | null
 }
 
+// Нормализуем гендер из бланка/анкеты к 'male' | 'female' для гендерных оптимумов
+function normalizeGender(raw: string | null | undefined): Gender | null {
+    if (!raw) return null
+    const s = raw.trim().toLowerCase()
+    if (s === 'male' || s === 'm' || s.startsWith('муж')) return 'male'
+    if (s === 'female' || s === 'f' || s.startsWith('жен')) return 'female'
+    return null
+}
+
 export class AnalysisService {
     constructor(
         private repo: AnalysisRepository,
         private storage: StoragePort,
-        private queue: QueuePort
+        private queue: QueuePort,
+        // Опционально: для персонализации оценки маркеров (гендер + теги анкеты)
+        private questionnaireRepo?: QuestionnaireRepository
     ) {}
 
     async createAnalysis(userId: string, files: FileInput[], opts: CreateAnalysisOptions = {}) {
@@ -67,31 +81,33 @@ export class AnalysisService {
             validated.push({ file, mime: detected.mime })
         }
 
-        const results: Array<{ analysisId: number; status: string }> = []
+        // Файлы обрабатываем параллельно: загрузка в MinIO + insert + enqueue не
+        // зависят друг от друга между файлами. Promise.all сохраняет порядок.
+        const results = await Promise.all(
+            validated.map(async ({ file, mime }) => {
+                const fileKey = await this.storage.upload(file.buffer, file.originalName, mime)
+                const analysis = await this.repo.insert({
+                    userId,
+                    fileKey,
+                    fileOriginalName: file.originalName,
+                    fileMimeType: mime,
+                    fileSize: file.buffer.length,
+                    analysisType: opts.analysisType,
+                    typeSource: opts.analysisType ? 'manual' : 'ai',
+                    ocrProvider: opts.ocrProvider,
+                })
 
-        for (const { file, mime } of validated) {
-            const fileKey = await this.storage.upload(file.buffer, file.originalName, mime)
-            const analysis = await this.repo.insert({
-                userId,
-                fileKey,
-                fileOriginalName: file.originalName,
-                fileMimeType: mime,
-                fileSize: file.buffer.length,
-                analysisType: opts.analysisType,
-                typeSource: opts.analysisType ? 'manual' : 'ai',
-                ocrProvider: opts.ocrProvider,
+                await this.queue.add({
+                    analysisId: analysis.id,
+                    fileKey,
+                    mimeType: mime,
+                    analysisType: opts.analysisType,
+                    ocrProvider: opts.ocrProvider,
+                })
+
+                return { analysisId: analysis.id, status: 'pending' }
             })
-
-            await this.queue.add({
-                analysisId: analysis.id,
-                fileKey,
-                mimeType: mime,
-                analysisType: opts.analysisType,
-                ocrProvider: opts.ocrProvider,
-            })
-
-            results.push({ analysisId: analysis.id, status: 'pending' })
-        }
+        )
 
         return results.length === 1 ? results[0]! : results
     }
@@ -104,7 +120,38 @@ export class AnalysisService {
         const analysis = await this.repo.findByIdAndUser(id, userId)
         if (!analysis) throw new AnalysisNotFoundError()
         const analysisMarkers = await this.repo.findMarkersByAnalysisId(id)
-        return { ...analysis, markers: analysisMarkers }
+
+        // Персонализация: гендер (анкета → бланк) и теги анкеты для сигналов.
+        // Оценку строим по собственным оптимумам нутрициолога (решение 032).
+        let gender = normalizeGender(analysis.patientGender)
+        let tags: string[] = []
+        if (this.questionnaireRepo) {
+            const questionnaire = await this.questionnaireRepo.findLatestByUser(userId)
+            if (questionnaire) {
+                const answers = questionnaire.answers as { gender?: string } | null
+                gender = normalizeGender(answers?.gender) ?? gender
+                tags = (questionnaire.tags as string[]) ?? []
+            }
+        }
+
+        const assessInput: AssessableMarker[] = analysisMarkers.map((m) => ({
+            name: m.name,
+            code: m.code,
+            value: m.value,
+            isOutOfRange: m.isOutOfRange,
+            outOfRangeDirection: m.outOfRangeDirection,
+            referenceMin: m.referenceMin,
+            referenceMax: m.referenceMax,
+            section: m.section,
+        }))
+        const assessments = assessMarkers(assessInput, gender, tags)
+
+        const markersWithAssessment = analysisMarkers.map((m, i) => ({
+            ...m,
+            assessment: assessments[i]!,
+        }))
+
+        return { ...analysis, markers: markersWithAssessment }
     }
 
     // Manually add a marker to a recognised analysis. isEdited=true marks it as

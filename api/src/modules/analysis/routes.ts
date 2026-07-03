@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { AnalysisRepository } from './repository.js'
 import { AnalysisService } from './service.js'
+import { QuestionnaireRepository } from '../questionnaire/repository.js'
 import { MinioStorage } from './infrastructure/storage.js'
 import { BullMQQueue } from './infrastructure/queue.js'
 import { ValidationError } from '../../core/errors.js'
@@ -36,6 +37,25 @@ const MarkerSchema = z.object({
     comment: z.string().nullable(),
     method: z.string().nullable(),
 })
+
+const MarkerRecommendationSchema = z.object({
+    summary: z.string().nullable(),
+    steps: z.array(z.string()),
+    foods: z.object({ add: z.array(z.string()), avoid: z.array(z.string()) }).nullable(),
+    topics: z.array(z.string()),
+})
+
+const MarkerAssessmentSchema = z.object({
+    status: z.enum(['normal', 'mild', 'severe']),
+    direction: z.enum(['low', 'high']).nullable(),
+    optimumMin: z.string().nullable(),
+    optimumMax: z.string().nullable(),
+    optimumSource: z.enum(['catalog', 'lab']).nullable(),
+    recommendation: MarkerRecommendationSchema.nullable(),
+})
+
+// Маркер с оценкой по оптимумам нутрициолога — только для детального ответа
+const MarkerDetailSchema = MarkerSchema.extend({ assessment: MarkerAssessmentSchema })
 
 const MarkerAddSchema = z.object({
     name: z.string().trim().min(1).max(255),
@@ -95,7 +115,7 @@ const AnalysisDetailSchema = AnalysisListItemSchema.extend({
     orderId: z.string().nullable(),
     sampleTakenAt: z.string().nullable(),
     reportDate: z.string().nullable(),
-    markers: z.array(MarkerSchema),
+    markers: z.array(MarkerDetailSchema),
 })
 
 const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
@@ -213,7 +233,9 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             // eslint-disable-next-line prefer-const
             let timer: ReturnType<typeof setTimeout> | undefined
 
-            const finish = (data: { status: string; analysisId: number }) => {
+            type SseData = { status: string; analysisId: number; progress?: number }
+
+            const finish = (data: SseData) => {
                 if (closed) return
                 closed = true
                 clearTimeout(timer)
@@ -224,7 +246,7 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 }
             }
 
-            const sendEvent = (data: { status: string; analysisId: number }) => {
+            const sendEvent = (data: SseData) => {
                 if (closed || raw.destroyed) return
                 raw.write(`data: ${JSON.stringify(data)}\n\n`)
                 if (data.status === 'done' || data.status === 'failed') {
@@ -233,7 +255,7 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             }
 
             sub.on('message', (_ch: string, msg: string) => {
-                sendEvent(JSON.parse(msg) as { status: string; analysisId: number })
+                sendEvent(JSON.parse(msg) as SseData)
             })
 
             await sub.subscribe(`analysis:${numId}`)
@@ -299,7 +321,8 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const service = new AnalysisService(
                 new AnalysisRepository(request.server.db),
                 storage,
-                queue
+                queue,
+                new QuestionnaireRepository(request.server.db)
             )
             const analysis = await service.getAnalysis(numId, request.user.id)
 

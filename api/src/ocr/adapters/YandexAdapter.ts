@@ -1,4 +1,4 @@
-import { type OcrService } from '../OcrService.js'
+import { type OcrService, type OcrProgress } from '../OcrService.js'
 import { validateLabResult, type LabResult } from '../types.js'
 import { OcrProviderError, OcrValidationError, OcrTimeoutError } from '../errors.js'
 import { SYSTEM_INSTRUCTION } from '../prompts/analysis.js'
@@ -31,14 +31,21 @@ export class YandexAdapter implements OcrService {
         this.maxRetries = cfg.maxRetries ?? 3
     }
 
-    async parseLabResult(buffer: Buffer, mimeType: string, _analysisType?: string): Promise<LabResult> {
-        return this.withRetry(() => this.run(buffer, mimeType))
-    }
-
-    private async run(buffer: Buffer, mimeType: string): Promise<LabResult> {
-        const rawText = await this.visionOcr(buffer, mimeType)
+    async parseLabResult(
+        buffer: Buffer,
+        mimeType: string,
+        _analysisType?: string,
+        onProgress?: OcrProgress
+    ): Promise<LabResult> {
+        onProgress?.(0.05)
+        // Ретраи Vision и GPT — раздельные: сбой GPT больше не гоняет заново
+        // (и не оплачивает повторно) распознавание изображения.
+        const rawText = await this.withRetry(() => this.visionOcr(buffer, mimeType))
         if (!rawText.trim()) throw new OcrValidationError('EMPTY_OCR_RESULT')
-        return this.gptStructure(rawText)
+        onProgress?.(0.55) // Vision готов — примерно половина пути
+        const result = await this.withRetry(() => this.gptStructure(rawText))
+        onProgress?.(0.95)
+        return result
     }
 
     // Step 1 — Yandex Vision OCR: sync (1 page) with fallback to async (multi-page)
@@ -144,14 +151,14 @@ export class YandexAdapter implements OcrService {
         const { id: operationId } = await startRes.json() as { id?: string }
         if (!operationId) throw new OcrProviderError('Yandex Vision async: no operation ID returned')
 
-        // Poll getRecognition — returns 404 while processing, then NDJSON when ready
-        const pollInterval = 3000
+        // Poll getRecognition — returns 404 while processing, then NDJSON when ready.
+        // Первый опрос — сразу (короткие операции успевают за пару секунд), далее
+        // каждые 1.5с: убирает лишнюю задержку старого «спим 3с до первого опроса».
+        const pollInterval = 1500
         const deadline = Date.now() + this.timeoutMs
         let rawBody: string | null = null
 
         while (Date.now() < deadline) {
-            await new Promise(resolve => setTimeout(resolve, pollInterval))
-
             let res: Response
             try {
                 res = await fetch(`${VISION_RESULT_URL}?operationId=${operationId}`, { headers })
@@ -159,7 +166,10 @@ export class YandexAdapter implements OcrService {
                 throw new OcrProviderError(`Yandex Vision get result error: ${err instanceof Error ? err.message : String(err)}`)
             }
 
-            if (res.status === 404) continue
+            if (res.status === 404) {
+                await new Promise(resolve => setTimeout(resolve, pollInterval))
+                continue
+            }
 
             if (!res.ok) {
                 const text = await res.text().catch(() => '')
@@ -263,7 +273,7 @@ export class YandexAdapter implements OcrService {
         }
     }
 
-    private async withRetry(fn: () => Promise<LabResult>, retriesLeft = this.maxRetries, delay = 1000): Promise<LabResult> {
+    private async withRetry<T>(fn: () => Promise<T>, retriesLeft = this.maxRetries, delay = 1000): Promise<T> {
         try {
             return await fn()
         } catch (err) {

@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, Icon } from '@/components/ds/AppCommon'
 import { Button, Field, Input, RadioGroup, GlassCard, FadeUp, EASE_OUT } from '@/components/ds/primitives'
 
@@ -50,6 +51,8 @@ function toForm(me: Me): Form {
 export default function ProfilePage() {
   const router = useRouter()
   const reduce = useReducedMotion()
+  const { logout } = useAuth()
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const [me, setMe] = useState<Me | null>(null)
   const [form, setForm] = useState<Form | null>(null)
@@ -289,6 +292,29 @@ export default function ProfilePage() {
               {saveError}
             </p>
           )}
+
+          {/* Выход из аккаунта */}
+          <FadeUp delay={0.3} style={{ marginTop: 44 }}>
+            <div aria-hidden="true" style={{ height: 1, margin: '0 0 20px', background: 'linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))' }} />
+            <motion.button
+              onClick={() => { setLoggingOut(true); void logout() }}
+              disabled={loggingOut}
+              whileHover={reduce ? undefined : { y: -1 }}
+              whileTap={reduce ? undefined : { scale: 0.98 }}
+              transition={{ duration: 0.2, ease: EASE_OUT }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '0.8rem 1.3rem', borderRadius: 12, background: 'rgba(255,120,110,0.06)', border: '1px solid rgba(255,120,110,0.24)', color: 'rgba(255,150,140,0.95)', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, cursor: loggingOut ? 'default' : 'pointer', opacity: loggingOut ? 0.7 : 1 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              {loggingOut ? 'Выходим…' : 'Выйти из аккаунта'}
+            </motion.button>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '12px 0 0' }}>
+              Завершить сеанс на этом устройстве. Ваши данные и анализы сохранятся.
+            </p>
+          </FadeUp>
         </div>
       </div>
     </main>

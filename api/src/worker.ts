@@ -67,21 +67,41 @@ const worker = new Worker<AnalysisJobData>(
             return
         }
 
+        // Публикация статуса + процента выполнения (0–100) в SSE. Прогресс —
+        // fire-and-forget: сбой Redis не должен ронять обработку.
+        const publish = (status: string, progress?: number) =>
+            redis
+                .publish(
+                    `analysis:${analysisId}`,
+                    JSON.stringify(
+                        progress !== undefined
+                            ? { status, analysisId, progress }
+                            : { status, analysisId }
+                    )
+                )
+                .catch((pubErr: Error) => log.warn({ err: pubErr }, 'Failed to publish status'))
+
         // Mark as processing so UI badge updates
         await db
             .update(analyses)
             .set({ status: 'processing', updatedAt: new Date() })
             .where(eq(analyses.id, analysisId))
 
-        await redis.publish(
-            `analysis:${analysisId}`,
-            JSON.stringify({ status: 'processing', analysisId })
-        )
+        await publish('processing', 8)
         log.info('status set to processing')
 
         try {
             const buffer = await storage.getBuffer(fileKey)
-            const result = await ocrService.parseLabResult(buffer, mimeType, analysisType)
+            void publish('processing', 20)
+
+            const result = await ocrService.parseLabResult(
+                buffer,
+                mimeType,
+                analysisType,
+                // Прогресс OCR (0..1) → 20–80% общей шкалы
+                (f) => void publish('processing', Math.round(20 + Math.min(1, Math.max(0, f)) * 60))
+            )
+            void publish('processing', 82)
 
             log.info({ markerCount: result.markers.length }, 'parsed markers')
 
@@ -159,6 +179,8 @@ const worker = new Worker<AnalysisJobData>(
                     .where(eq(analyses.id, analysisId))
             })
 
+            void publish('processing', 96)
+
         } catch (err) {
             log.error({ err }, 'job failed')
             await db
@@ -166,11 +188,7 @@ const worker = new Worker<AnalysisJobData>(
                 .set({ status: 'failed', updatedAt: new Date() })
                 .where(eq(analyses.id, analysisId))
             // Не глушим ошибку публикации — просто логируем, чтобы не скрыть оригинальную
-            redis
-                .publish(`analysis:${analysisId}`, JSON.stringify({ status: 'failed', analysisId }))
-                .catch((pubErr: Error) =>
-                    log.warn({ err: pubErr }, 'Failed to publish failed status')
-                )
+            void publish('failed')
             // Невалидный результат OCR (не бланк анализа, кривая схема) детерминирован —
             // повторные платные прогоны Vision+GPT не помогут
             if (err instanceof OcrValidationError) {
@@ -181,9 +199,7 @@ const worker = new Worker<AnalysisJobData>(
 
         // Publish после commit — вне try: сбой Redis здесь не должен перевести
         // успешно сохранённый анализ в failed (и повторно вставлять маркеры)
-        redis
-            .publish(`analysis:${analysisId}`, JSON.stringify({ status: 'done', analysisId }))
-            .catch((pubErr: Error) => log.warn({ err: pubErr }, 'Failed to publish done status'))
+        void publish('done', 100)
         log.info('job done')
     },
     {
