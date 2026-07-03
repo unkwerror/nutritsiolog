@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, ProgressRing, AnimatedNumber, Icon } from '@/components/ds/AppCommon'
 import { Button, StatusBadge, FadeUp, EASE_OUT } from '@/components/ds/primitives'
 import { formatDate, analysisName } from '@/lib/format'
+import { useAnalysesLive, type LiveState } from '@/lib/useAnalysesLive'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type AnalysisListItem = {
@@ -58,6 +59,26 @@ export default function DashboardPage() {
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
   }, [])
+
+  // Тихая перезагрузка (без скелетона) — для авторефреша по завершении анализа
+  const refreshAnalysesSilent = useCallback(() => {
+    apiRequest<AnalysisListItem[]>('/api/v1/analysis')
+      .then((list) => setAnalyses(Array.isArray(list) ? list : []))
+      .catch(() => {})
+  }, [])
+
+  const [toast, setToast] = useState<{ status: 'done' | 'failed' } | null>(null)
+  // Живой процент выполнения + авто-обновление списка по завершении
+  const live = useAnalysesLive(analyses, (_id, status) => {
+    refreshAnalysesSilent()
+    setToast({ status })
+  })
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 9000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   useEffect(() => {
     if (!getAccessToken()) return
@@ -219,7 +240,7 @@ export default function DashboardPage() {
                           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
                         </div>
                       </div>
-                      <StatusBadge status={a.status} />
+                      <RowStatus listStatus={a.status} live={live[a.id]} />
                     </Link>
                   </motion.li>
                 ))}
@@ -236,6 +257,58 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Уведомление о завершении обработки анализа */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.35, ease: EASE_OUT }}
+            style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'clamp(1rem,4vw,2rem)', zIndex: 50, width: 'min(92vw, 30rem)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 16, background: toast.status === 'done' ? 'linear-gradient(100deg, rgba(46,61,40,0.98), rgba(38,50,34,0.98))' : 'rgba(48,32,30,0.98)', border: `1px solid ${toast.status === 'done' ? 'rgba(255,230,146,0.3)' : 'rgba(255,120,110,0.35)'}`, boxShadow: '0 12px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}>
+              <span style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 11, background: toast.status === 'done' ? 'rgba(255,230,146,0.14)' : 'rgba(255,120,110,0.14)', color: toast.status === 'done' ? 'var(--gold)' : '#ff9a8a', fontSize: 18 }}>
+                {toast.status === 'done' ? '✓' : '!'}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: '#fff', fontSize: 14.5, margin: 0, fontWeight: 500 }}>
+                  {toast.status === 'done' ? 'Анализ обработан' : 'Не удалось распознать анализ'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12.5, margin: '2px 0 0' }}>
+                  {toast.status === 'done' ? 'Готовы новые рекомендации' : 'Попробуйте загрузить более чёткий файл'}
+                </p>
+              </div>
+              {toast.status === 'done' ? (
+                <button onClick={() => router.push('/recommendations')} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 10, border: 'none', background: 'var(--gold)', color: '#2b3a24', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  Смотреть
+                </button>
+              ) : (
+                <button onClick={() => setToast(null)} aria-label="Закрыть" style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(255,255,255,0.16)', background: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 16 }}>
+                  ×
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
+  )
+}
+
+// Правый элемент строки анализа: живой процент выполнения или итоговый бейдж
+function RowStatus({ listStatus, live }: { listStatus: AnalysisStatus; live?: LiveState }) {
+  const status = live?.status ?? listStatus
+  const inFlight = status === 'pending' || status === 'processing'
+  if (!inFlight) return <StatusBadge status={status} />
+  const pct = Math.round(live?.progress ?? 0)
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, width: 92, flexShrink: 0 }}>
+      <span style={{ fontSize: 12, color: 'var(--gold)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+      <span style={{ width: '100%', height: 4, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+        <span style={{ display: 'block', height: '100%', width: `${pct}%`, borderRadius: 3, background: 'var(--gold)', transition: 'width .3s ease' }} />
+      </span>
+    </span>
   )
 }

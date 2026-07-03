@@ -411,6 +411,17 @@ export default function UploadPage() {
                 ))}
               </ul>
 
+              {submitting && (
+                <div className="fade-up" style={{ marginTop: 20 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13.5, lineHeight: 1.6, margin: '0 0 12px' }}>
+                    Можно не ждать здесь — обработка продолжится сама. Прогресс и готовность видны в кабинете, а когда анализ обработается, придёт уведомление.
+                  </p>
+                  <Button variant="outline-gold" onClick={() => router.push('/dashboard')}>
+                    Вернуться в кабинет
+                  </Button>
+                </div>
+              )}
+
               {allDone && !submitting && (
                 <div className="fade-up" style={{ marginTop: 24 }}>
                   {!anyDone && (

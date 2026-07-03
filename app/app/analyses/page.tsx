@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, Icon, useReveal } from '@/components/ds/AppCommon'
 import { Button, StatusBadge } from '@/components/ds/primitives'
 import { analysisName } from '@/lib/format'
+import { useAnalysesLive, type LiveState } from '@/lib/useAnalysesLive'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type Item = {
@@ -57,6 +58,15 @@ export default function AnalysesPage() {
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
   }, [])
+
+  // Тихий авторефреш по завершении анализа (без скелетона)
+  const refreshItemsSilent = useCallback(() => {
+    apiRequest<Item[]>('/api/v1/analysis')
+      .then((l) => setItems(Array.isArray(l) ? l : []))
+      .catch(() => {})
+  }, [])
+
+  const live = useAnalysesLive(items, () => refreshItemsSilent())
 
   useEffect(() => {
     if (!getAccessToken()) return
@@ -119,7 +129,7 @@ export default function AnalysesPage() {
                       </span>
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                      <StatusBadge status={a.status} />
+                      <RowStatus listStatus={a.status} live={live[a.id]} />
                       <span className="card-arrow" style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
                     </span>
                   </button>
@@ -130,5 +140,21 @@ export default function AnalysesPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+// Живой процент выполнения или итоговый бейдж статуса
+function RowStatus({ listStatus, live }: { listStatus: AnalysisStatus; live?: LiveState }) {
+  const status = live?.status ?? listStatus
+  const inFlight = status === 'pending' || status === 'processing'
+  if (!inFlight) return <StatusBadge status={status} />
+  const pct = Math.round(live?.progress ?? 0)
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, width: 92 }}>
+      <span style={{ fontSize: 12, color: 'var(--gold)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+      <span style={{ width: '100%', height: 4, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+        <span style={{ display: 'block', height: '100%', width: `${pct}%`, borderRadius: 3, background: 'var(--gold)', transition: 'width .3s ease' }} />
+      </span>
+    </span>
   )
 }
