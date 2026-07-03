@@ -63,21 +63,13 @@ export default function DashboardPage() {
     apiRequest<{ id: number } | null>('/api/v1/questionnaire/my')
       .then((q) => setHasQuestionnaire(!!q))
       .catch(() => setHasQuestionnaire(false))
-    // Админ-проба кэшируется на сессию — не дёргаем /admin/me при каждом визите.
-    const cachedAdmin = sessionStorage.getItem('isAdmin')
-    if (cachedAdmin !== null) {
-      setIsAdmin(cachedAdmin === '1')
-    } else {
-      apiRequest('/api/v1/admin/me')
-        .then(() => {
-          sessionStorage.setItem('isAdmin', '1')
-          setIsAdmin(true)
-        })
-        .catch(() => {
-          sessionStorage.setItem('isAdmin', '0')
-          setIsAdmin(false)
-        })
-    }
+    // Проба админ-доступа. НЕ кэшируем в sessionStorage: кэш переживал смену
+    // аккаунта в одной вкладке, и не-админ после сессии админа видел консоль.
+    // /admin/me отдаёт 403 не-админам (allowlist по email на сервере).
+    sessionStorage.removeItem('isAdmin') // чистим старый кэш
+    apiRequest('/api/v1/admin/me')
+      .then(() => setIsAdmin(true))
+      .catch(() => setIsAdmin(false))
   }, [loadAnalyses])
 
   const analysisCount = analyses.length
