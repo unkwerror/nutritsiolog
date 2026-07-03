@@ -11,14 +11,19 @@ const safeNumber = z.preprocess(
     z.number().nullable()
 )
 
+// name/fullName делаем nullable+optional: модель штатно возвращает null, когда
+// в бланке не напечатано название лаборатории или имя пациента (поля в БД тоже
+// nullable). Раньше это роняло валидный анализ с "expected string, received null".
+const nullableStr = z.string().nullable().optional().transform((v) => v ?? null)
+
 const labSchema = z.object({
-    name:    z.string(),
+    name:    nullableStr,
     address: z.string().nullable(),
     phone:   z.string().nullable()
 })
 
 const patientSchema = z.object({
-    fullName:  z.string(),
+    fullName:  nullableStr,
     gender:    z.enum(['male', 'female']).nullable(),
     birthDate: z.string().nullable(),
     age:       safeNumber
