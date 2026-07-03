@@ -13,6 +13,15 @@ function escapeLike(term: string): string {
 export class AdminRepository {
     constructor(private db: DB) {}
 
+    // Файл анализа по id (без фильтра по пользователю — доступ только у админа).
+    async findAnalysisFile(id: number) {
+        const [row] = await this.db
+            .select({ fileKey: analyses.fileKey, fileMimeType: analyses.fileMimeType })
+            .from(analyses)
+            .where(eq(analyses.id, id))
+        return row ?? null
+    }
+
     /**
      * Поиск по почте, имени, фамилии, отчеству. Несколько слов — каждое должно
      * найтись в «стоге» (ФИО + email), поэтому "иван петров" найдёт Иван Петров.

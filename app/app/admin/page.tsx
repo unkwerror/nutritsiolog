@@ -602,6 +602,32 @@ function TabAnketa({ detail }: { detail: UserDetail }) {
 }
 
 function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
+  const [preview, setPreview] = useState<{ url: string; mime: string } | null>(null)
+  const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [fileErr, setFileErr] = useState<string | null>(null)
+
+  async function openFile(id: number) {
+    if (loadingId !== null) return
+    setLoadingId(id)
+    setFileErr(null)
+    try {
+      const res = await apiFetch(`/api/v1/admin/analyses/${id}/file`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      setPreview({ url: URL.createObjectURL(blob), mime: blob.type || res.headers.get('Content-Type') || '' })
+    } catch (e: unknown) {
+      setFileErr(e instanceof Error ? e.message : 'Не удалось загрузить файл')
+    } finally {
+      setLoadingId(null)
+    }
+  }
+  function closeFile() {
+    setPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url)
+      return null
+    })
+  }
+
   if (analyses.length === 0) return <Empty text="Пользователь не загружал анализы" />
   const allMarkers = analyses.flatMap((a) => a.markers)
   return (
@@ -641,9 +667,53 @@ function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
               />
               {a.status === 'done' ? 'готово' : a.status === 'failed' ? 'ошибка' : 'обработка'}
             </span>
+            <button
+              onClick={() => void openFile(a.id)}
+              disabled={loadingId === a.id}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 h-8 text-[12px]"
+              style={{ color: '#ffe692', border: '1px solid rgba(255,230,146,0.35)', background: 'rgba(255,230,146,0.05)', cursor: loadingId === a.id ? 'default' : 'pointer' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {loadingId === a.id ? '…' : 'Файл'}
+            </button>
           </li>
         ))}
       </ul>
+      {fileErr && <p className="mb-3 text-[13px]" style={{ color: 'rgba(248,113,113,0.9)' }}>{fileErr}</p>}
+
+      <AnimatePresence>
+        {preview && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex flex-col"
+            style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeFile}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.6)' }}>Исходный файл</span>
+              <div className="flex items-center gap-2">
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center h-9 px-3 rounded-lg text-[13px]" style={{ color: '#ffe692', border: '1px solid rgba(255,230,146,0.35)' }}>
+                  Открыть в новой вкладке
+                </a>
+                <button onClick={closeFile} aria-label="Закрыть" className="grid place-items-center w-9 h-9 rounded-lg" style={{ border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.8)' }}>×</button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 flex items-center justify-center p-4 pt-0" onClick={(e) => e.stopPropagation()}>
+              {preview.mime.startsWith('image') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview.url} alt="Исходный файл анализа" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 12 }} />
+              ) : (
+                <iframe src={preview.url} title="Исходный файл анализа" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12, background: '#fff' }} />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {allMarkers.length > 0 ? (
         <>

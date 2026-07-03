@@ -7,8 +7,12 @@ import { UsersRepository } from '../auth/repository.js'
 import { ProfileService } from '../profile/service.js'
 import { AdminRepository } from './repository.js'
 import { AdminService } from './service.js'
+import { MinioStorage } from '../analysis/infrastructure/storage.js'
 import { requireAdmin } from './guard.js'
+import { NotFoundError } from '../../core/errors.js'
 import { SearchUsersQuery, SearchUsersResponse, UserDetailResponse } from './schemas.js'
+
+const storage = new MinioStorage()
 
 const IdParams = z.object({ id: z.uuid() })
 
@@ -103,6 +107,31 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
                     'Content-Disposition',
                     `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
                 )
+                .send(buffer)
+        }
+    )
+
+    // Исходный файл анализа любого пользователя (для визуального просмотра в консоли).
+    fastify.get(
+        '/admin/analyses/:id/file',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({ id: z.coerce.number().int().positive() }),
+                description: 'Исходный файл анализа (PDF/JPEG/PNG) для просмотра в админке',
+            },
+        },
+        async (request, reply) => {
+            const repo = new AdminRepository(request.server.db)
+            const file = await repo.findAnalysisFile(request.params.id)
+            if (!file) throw new NotFoundError('ANALYSIS_NOT_FOUND', 'Анализ не найден')
+            const buffer = await storage.getBuffer(file.fileKey)
+            return reply
+                .header('Content-Type', file.fileMimeType ?? 'application/octet-stream')
+                .header('Content-Disposition', `inline; filename="analysis-${request.params.id}"`)
+                .header('Cache-Control', 'private, max-age=60')
                 .send(buffer)
         }
     )

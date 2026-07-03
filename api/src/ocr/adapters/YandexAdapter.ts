@@ -5,10 +5,11 @@ import { SYSTEM_INSTRUCTION } from '../prompts/analysis.js'
 import logger from '../../core/logger.js'
 
 type YandexAdapterConfig = {
-    apiKey:      string
-    folderId:    string
-    timeoutMs?:  number
-    maxRetries?: number
+    apiKey:         string
+    folderId:       string
+    timeoutMs?:     number
+    gptTimeoutMs?:  number
+    maxRetries?:    number
 }
 
 const VISION_SYNC_URL   = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText'
@@ -19,16 +20,20 @@ const GPT_URL           = 'https://llm.api.cloud.yandex.net/foundationModels/v1/
 const TEXT_PARSE_PROMPT = `Ниже — текст, распознанный OCR из медицинского лабораторного бланка. Разбери его и верни результат строго по схеме из системного промпта. Если текст не является результатом лабораторного анализа — верни {"notALabResult": true}. Только JSON, без дополнительного текста.\n\nТЕКСТ БЛАНКА:\n`
 
 export class YandexAdapter implements OcrService {
-    private readonly apiKey:     string
-    private readonly folderId:   string
-    private readonly timeoutMs:  number
-    private readonly maxRetries: number
+    private readonly apiKey:        string
+    private readonly folderId:      string
+    private readonly timeoutMs:     number
+    private readonly gptTimeoutMs:  number
+    private readonly maxRetries:    number
 
     constructor(cfg: YandexAdapterConfig) {
-        this.apiKey     = cfg.apiKey
-        this.folderId   = cfg.folderId
-        this.timeoutMs  = cfg.timeoutMs  ?? 60_000
-        this.maxRetries = cfg.maxRetries ?? 3
+        this.apiKey       = cfg.apiKey
+        this.folderId     = cfg.folderId
+        this.timeoutMs    = cfg.timeoutMs    ?? 60_000
+        // GPT-шаг на больших бланках (много маркеров) не укладывался в 60с —
+        // даём ему больше времени, чем Vision OCR.
+        this.gptTimeoutMs = cfg.gptTimeoutMs ?? 120_000
+        this.maxRetries   = cfg.maxRetries   ?? 3
     }
 
     async parseLabResult(
@@ -227,7 +232,7 @@ export class YandexAdapter implements OcrService {
         }
 
         const abort = new AbortController()
-        const timer = setTimeout(() => abort.abort(), this.timeoutMs)
+        const timer = setTimeout(() => abort.abort(), this.gptTimeoutMs)
 
         let response: Response
         try {
@@ -243,7 +248,7 @@ export class YandexAdapter implements OcrService {
             })
         } catch (err) {
             if (err instanceof Error && err.name === 'AbortError')
-                throw new OcrTimeoutError(`Yandex GPT timeout after ${this.timeoutMs}ms`)
+                throw new OcrTimeoutError(`Yandex GPT timeout after ${this.gptTimeoutMs}ms`)
             throw new OcrProviderError(`Yandex GPT fetch error: ${err instanceof Error ? err.message : String(err)}`)
         } finally {
             clearTimeout(timer)
