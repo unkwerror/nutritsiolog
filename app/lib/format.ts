@@ -20,12 +20,54 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2]
 }
 
+// Коды типов анализа (analysisTypeEnum) → человеко-читаемые русские названия
+export const ANALYSIS_TYPE_RU: Record<string, string> = {
+  cbc: 'Общий анализ крови',
+  biochemistry: 'Биохимия крови',
+  thyroid: 'Щитовидная железа',
+  hormones: 'Гормоны',
+  vitamins: 'Витамины и микроэлементы',
+  coagulation: 'Коагулограмма',
+  urinalysis: 'Общий анализ мочи',
+  lipid: 'Липидный профиль',
+  immunology: 'Иммунология',
+  other: 'Другое исследование',
+}
+
+function ruType(code: string): string {
+  return ANALYSIS_TYPE_RU[code.trim()] ?? code.trim()
+}
+
 /**
- * Подпись типа анализа: массив типов → «cbc, liver», строка → как есть (trim),
- * пусто → '' — фолбэк («Анализ #N», «тип не определён») задаёт вызывающий код.
+ * Подпись типа анализа по-русски: массив кодов → «Общий анализ крови, Биохимия»,
+ * строка-код → русское название; пусто → '' (фолбэк задаёт вызывающий код).
  */
 export function analysisTypeLabel(types: string | string[] | null | undefined): string {
-  if (Array.isArray(types)) return types.join(', ')
-  if (typeof types === 'string') return types.trim()
+  if (Array.isArray(types)) {
+    const names = Array.from(new Set(types.filter(Boolean).map(ruType)))
+    return names.join(', ')
+  }
+  if (typeof types === 'string' && types.trim()) return ruType(types)
   return ''
+}
+
+/**
+ * Осмысленное имя анализа для списков и заголовков: «что за анализ», а не номер.
+ * Приоритет: распознанные типы → выбранный вручную тип → название лаборатории →
+ * «Анализ #N» (когда тип ещё не определён — на этапе обработки/ошибки).
+ */
+export function analysisName(a: {
+  id: number
+  detectedTypes?: string[] | null
+  analysisType?: string | null
+  labName?: string | null
+}): string {
+  const types = (a.detectedTypes ?? []).filter(Boolean)
+  if (types.length > 0) {
+    const names = Array.from(new Set(types.map(ruType)))
+    return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+  }
+  if (a.analysisType) return ruType(a.analysisType)
+  if (a.labName && a.labName.trim()) return a.labName.trim()
+  return `Анализ #${a.id}`
 }

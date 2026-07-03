@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
+import { analysisName } from '@/lib/format'
 import { AppBackground, AppNav } from '@/components/ds/AppCommon'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -50,6 +51,8 @@ type AnalysisDetail = {
   id: number
   status: 'pending' | 'processing' | 'done' | 'failed'
   labName: string | null
+  detectedTypes: string[] | null
+  analysisType: string | null
   patientFullName: string | null
   patientGender: string | null
   patientBirthDate: string | null
@@ -809,7 +812,7 @@ export default function AnalysisDetailPage({ params }: PageProps) {
               className="font-display font-light text-white leading-tight"
               style={{ fontSize: 'clamp(1.7rem, 4vw, 2.8rem)' }}
             >
-              {analysis.labName ?? `Анализ #${analysis.id}`}
+              {analysis.labName ?? analysisName(analysis)}
             </h1>
             <StatusBadge status={analysis.status} />
           </div>

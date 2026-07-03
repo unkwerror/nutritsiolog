@@ -8,13 +8,15 @@ import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, ProgressRing, AnimatedNumber, Icon } from '@/components/ds/AppCommon'
 import { Button, StatusBadge, FadeUp, EASE_OUT } from '@/components/ds/primitives'
-import { formatDate, analysisTypeLabel } from '@/lib/format'
+import { formatDate, analysisName } from '@/lib/format'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type AnalysisListItem = {
   id: number
   status: AnalysisStatus
-  analysisTypes: string | string[] | null
+  detectedTypes: string[] | null
+  analysisType: string | null
+  labName: string | null
   createdAt: string
   patientName: string | null
 }
@@ -213,7 +215,7 @@ export default function DashboardPage() {
                           <Icon name="lab" size={20} color="rgba(255,255,255,0.6)" />
                         </span>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{analysisTypeLabel(a.analysisTypes) || `Анализ #${a.id}`}</p>
+                          <p style={{ color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{analysisName(a)}</p>
                           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: '2px 0 0' }}>{formatDate(a.createdAt)}</p>
                         </div>
                       </div>

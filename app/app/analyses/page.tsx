@@ -6,12 +6,15 @@ import { apiRequest, getAccessToken } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { AppBackground, AppNav, Icon, useReveal } from '@/components/ds/AppCommon'
 import { Button, StatusBadge } from '@/components/ds/primitives'
+import { analysisName } from '@/lib/format'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type Item = {
   id: number
   status: AnalysisStatus
-  analysisTypes: string | string[] | null
+  detectedTypes: string[] | null
+  analysisType: string | null
+  labName: string | null
   createdAt: string
   patientName: string | null
 }
@@ -22,12 +25,6 @@ function formatDate(iso: string): string {
   } catch {
     return iso
   }
-}
-function typeLabel(a: Item): string {
-  const t = a.analysisTypes
-  if (Array.isArray(t) && t.length > 0) return t.join(', ')
-  if (typeof t === 'string' && t.trim().length > 0) return t
-  return `Анализ #${a.id}`
 }
 
 // <li> с reveal-анимацией: класс на самом li, чтобы между <ul> и <li>
@@ -117,7 +114,7 @@ export default function AnalysesPage() {
                         <Icon name="lab" size={20} color="rgba(255,255,255,0.6)" />
                       </span>
                       <span style={{ minWidth: 0 }}>
-                        <span style={{ display: 'block', color: '#fff', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{typeLabel(a)}</span>
+                        <span style={{ display: 'block', color: '#fff', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{analysisName(a)}</span>
                         <span style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 2 }}>{formatDate(a.createdAt)}</span>
                       </span>
                     </span>
