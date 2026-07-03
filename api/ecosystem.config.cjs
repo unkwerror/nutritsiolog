@@ -22,7 +22,12 @@ module.exports = {
             instances: 1,
             autorestart: true,
             watch: false,
-            max_memory_restart: '256M'
+            // Базовый RSS воркера ~280МБ, а на OCR (base64 файла + Vision/GPT
+            // payloads ×retries) кратковременно выше. Лимит 256М приводил к
+            // рестарту каждые ~30с и убивал OCR-джобы на середине. Ставим запас.
+            max_memory_restart: '1024M',
+            // Дать активной OCR-джобе завершиться при рестарте/деплое до SIGKILL
+            kill_timeout: 60000
         },
         {
             name: 'nutritsiolog-app',
