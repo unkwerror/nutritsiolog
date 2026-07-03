@@ -265,6 +265,9 @@ export class AnalysisService {
                             ? String(input.value)
                             : null
                         : existing.value,
+                // Текстовый результат сохраняется между ревизиями (правки числового
+                // значения его не трогают)
+                valueText: existing.valueText,
                 unit: input.unit !== undefined ? input.unit : existing.unit,
                 referenceMin:
                     input.referenceMin !== undefined

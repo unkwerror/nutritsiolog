@@ -40,6 +40,9 @@ const markerSchema = z.object({
     code:                z.string().nullable(),
     section:             z.string(),
     value:               safeNumber,
+    // Качественный/текстовый результат, когда value не число
+    // («не обнаружено», «жёлтый», «немного», «обнаружены», «<34», «0-1»)
+    valueText:           nullableStr,
     unit:                z.string().nullable(),
     referenceMin:        safeNumber.optional().transform(v => v ?? null),
     referenceMax:        safeNumber.optional().transform(v => v ?? null),

@@ -359,7 +359,9 @@ export function buildProfilePdf(
                 for (const m of a.markers) {
                     ensure(15)
                     const top = doc.y
-                    const valueText = `${trimNumeric(m.value)} ${m.unit ?? ''}`.trim()
+                    // Числовой результат — trimNumeric(value); текстовый — valueText как есть
+                    const resultStr = m.value != null ? trimNumeric(m.value) : (m.valueText ?? '—')
+                    const valueText = `${resultStr} ${m.unit ?? ''}`.trim()
                     const dir = m.outOfRangeDirection
                     const color = m.isOutOfRange
                         ? dir === 'high'

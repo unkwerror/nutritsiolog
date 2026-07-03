@@ -31,6 +31,7 @@ type Marker = {
   code: string | null
   section: string | null
   value: string | null
+  valueText: string | null
   unit: string | null
   referenceRaw: string | null
   isOutOfRange: boolean
@@ -742,7 +743,7 @@ function TabAnalyses({ analyses }: { analyses: Analysis[] }) {
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="font-display text-[15px] text-white">
-                    {trimNumeric(m.value)} {m.unit ?? ''}
+                    {m.value != null ? trimNumeric(m.value) : (m.valueText ?? '—')} {m.unit ?? ''}
                   </span>
                   <span
                     className="min-w-[88px] text-right text-[11.5px]"

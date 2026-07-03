@@ -152,6 +152,7 @@ const worker = new Worker<AnalysisJobData>(
                             code: marker.code,
                             section: marker.section,
                             value: marker.value !== null ? String(marker.value) : null,
+                            valueText: marker.valueText,
                             unit: marker.unit,
                             referenceMin:
                                 marker.referenceMin !== null ? String(marker.referenceMin) : null,

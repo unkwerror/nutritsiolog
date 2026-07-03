@@ -55,6 +55,7 @@ export class AdminService {
                     code: m.code,
                     section: m.section,
                     value: m.value,
+                    valueText: m.valueText,
                     unit: m.unit,
                     referenceRaw: m.referenceRaw,
                     isOutOfRange: m.isOutOfRange,

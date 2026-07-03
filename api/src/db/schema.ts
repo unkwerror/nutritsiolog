@@ -122,6 +122,9 @@ export const markers = pgTable(
         section: varchar('section', { length: 100 }),
 
         value: numeric('value', { precision: 12, scale: 4 }),
+        // Качественный/текстовый результат («не обнаружено», «жёлтый», «немного»,
+        // «обнаружены», «<34», «0-1») — для маркеров, у которых результат не число.
+        valueText: text('value_text'),
         unit: varchar('unit', { length: 50 }),
         referenceMin: numeric('reference_min', { precision: 12, scale: 4 }),
         referenceMax: numeric('reference_max', { precision: 12, scale: 4 }),

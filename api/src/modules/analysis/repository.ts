@@ -21,6 +21,7 @@ type NewMarker = {
     code?: string | null
     section?: string | null
     value?: string | null
+    valueText?: string | null
     unit?: string | null
     referenceMin?: string | null
     referenceMax?: string | null
@@ -42,6 +43,7 @@ const markerColumns = {
     code: markers.code,
     section: markers.section,
     value: markers.value,
+    valueText: markers.valueText,
     unit: markers.unit,
     referenceMin: markers.referenceMin,
     referenceMax: markers.referenceMax,

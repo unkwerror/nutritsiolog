@@ -27,6 +27,7 @@ const MarkerSchema = z.object({
     code: z.string().nullable(),
     section: z.string().nullable(),
     value: z.string().nullable(),
+    valueText: z.string().nullable(),
     unit: z.string().nullable(),
     referenceMin: z.string().nullable(),
     referenceMax: z.string().nullable(),

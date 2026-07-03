@@ -32,6 +32,7 @@ type Marker = {
   code: string | null
   section: string | null
   value: string | null
+  valueText: string | null
   unit: string | null
   referenceMin: string | null
   referenceMax: string | null
@@ -236,7 +237,7 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
       <div className="shrink-0 text-right min-w-[5rem]">
         <p className="font-sans text-sm font-medium" style={{ color: valueColor }}>
           {arrow && <span className="text-[11px] mr-0.5">{arrow}</span>}
-          {marker.value ?? '—'}
+          {marker.value ?? marker.valueText ?? '—'}
           {marker.unit && (
             <span className="text-white/35 text-[11px] font-normal ml-1">{marker.unit}</span>
           )}

@@ -64,6 +64,13 @@
       "when": 1783400000000,
       "tag": "0008_marker_catalog_and_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783500000000,
+      "tag": "0009_add_marker_value_text",
+      "breakpoints": true
     }
   ]
 }

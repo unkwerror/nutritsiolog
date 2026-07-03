@@ -38,6 +38,7 @@ export const AdminMarker = z.object({
     code: z.string().nullable(),
     section: z.string().nullable(),
     value: z.string().nullable(),
+    valueText: z.string().nullable(),
     unit: z.string().nullable(),
     referenceRaw: z.string().nullable(),
     isOutOfRange: z.boolean(),
