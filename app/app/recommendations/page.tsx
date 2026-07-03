@@ -366,7 +366,12 @@ function FindingCard({ f, index, isOpen, onToggle }: { f: Finding; index: number
   const sev = FINDING_SEV[f.status]
   const isLow = f.direction === 'low'
   const rec = f.recommendation
-  const hasRec = !!rec && (!!rec.summary || rec.steps.length > 0 || !!rec.foods)
+  // Если по маркеру есть сигнал (topics) — подробный протокол живёт в блоке
+  // «Что важно сейчас». Здесь не дублируем шаги/продукты, только указываем на него.
+  // Иначе показываем краткий персональный совет (его нет больше нигде).
+  const linkedTopics = rec?.topics ?? []
+  const hasSignal = linkedTopics.length > 0
+  const hasRec = !!rec && (hasSignal || !!rec.summary)
 
   return (
     <motion.article
@@ -415,21 +420,21 @@ function FindingCard({ f, index, isOpen, onToggle }: { f: Finding; index: number
             <div style={{ padding: '2px 15px 15px 15px' }}>
               {/* Отбивка от шапки карточки */}
               <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '0 0 13px' }} />
-              {rec.summary && (
-                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', lineHeight: 1.6, margin: '0 0 12px' }}>{rec.summary}</p>
-              )}
-              {rec.steps.length > 0 && (
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-                  {rec.steps.map((s, i) => (
-                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.75)', lineHeight: 1.55 }}>
-                      <span style={{ flexShrink: 0, marginTop: 7, width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,230,146,0.7)' }} />
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {rec.foods && (rec.foods.add.length > 0 || rec.foods.avoid.length > 0) && (
-                <FoodLists foods={{ add: rec.foods.add.length ? rec.foods.add : undefined, avoid: rec.foods.avoid.length ? rec.foods.avoid : undefined }} />
+              {hasSignal ? (
+                // Протокол — в «Что важно сейчас», здесь только указатель (без дублей)
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ flexShrink: 0, marginTop: 1, color: 'var(--gold)' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </span>
+                  <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, margin: 0 }}>
+                    План действий — в блоке «Что важно сейчас»:{' '}
+                    <span style={{ color: 'var(--gold)' }}>{linkedTopics.join(', ')}</span>
+                  </p>
+                </div>
+              ) : (
+                rec.summary && (
+                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', lineHeight: 1.6, margin: 0 }}>{rec.summary}</p>
+                )
               )}
             </div>
           </motion.div>
