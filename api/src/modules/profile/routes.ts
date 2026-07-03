@@ -20,6 +20,40 @@ const SignalSchema = z.object({
     sources: z.array(z.string()),
 })
 
+const MarkerRecommendationSchema = z.object({
+    summary: z.string().nullable(),
+    steps: z.array(z.string()),
+    foods: z.object({ add: z.array(z.string()), avoid: z.array(z.string()) }).nullable(),
+    topics: z.array(z.string()),
+})
+
+// Живые findings (/recommendations) несут силу отклонения и рекомендацию
+const LiveFindingSchema = z.object({
+    key: z.string(),
+    display: z.string(),
+    section: z.string(),
+    direction: z.enum(['low', 'high']),
+    value: z.number().nullable(),
+    optimumMin: z.number().nullable(),
+    optimumMax: z.number().nullable(),
+    source: z.enum(['catalog', 'lab']),
+    status: z.enum(['mild', 'severe']),
+    recommendation: MarkerRecommendationSchema.optional(),
+})
+
+// Findings из снимка: status может отсутствовать в старых записях, рекомендаций нет
+const SnapshotFindingSchema = z.object({
+    key: z.string(),
+    display: z.string(),
+    section: z.string(),
+    direction: z.enum(['low', 'high']),
+    value: z.number().nullable(),
+    optimumMin: z.number().nullable(),
+    optimumMax: z.number().nullable(),
+    source: z.enum(['catalog', 'lab']),
+    status: z.enum(['mild', 'severe']).optional(),
+})
+
 const ProgramBlockSchema = z.object({
     key: z.string(),
     icon: z.string(),
@@ -60,18 +94,7 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
                                 score: z.number(),
                             })
                         ),
-                        findings: z.array(
-                            z.object({
-                                key: z.string(),
-                                display: z.string(),
-                                section: z.string(),
-                                direction: z.enum(['low', 'high']),
-                                value: z.number().nullable(),
-                                optimumMin: z.number().nullable(),
-                                optimumMax: z.number().nullable(),
-                                source: z.enum(['catalog', 'lab']),
-                            })
-                        ),
+                        findings: z.array(LiveFindingSchema),
                         criticalCount: z.number(),
                         warningCount: z.number(),
                         hasQuestionnaire: z.boolean(),
@@ -102,18 +125,7 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
             })
         ),
         signals: z.array(SignalSchema),
-        findings: z.array(
-            z.object({
-                key: z.string(),
-                display: z.string(),
-                section: z.string(),
-                direction: z.enum(['low', 'high']),
-                value: z.number().nullable(),
-                optimumMin: z.number().nullable(),
-                optimumMax: z.number().nullable(),
-                source: z.enum(['catalog', 'lab']),
-            })
-        ),
+        findings: z.array(SnapshotFindingSchema),
         tags: z.array(z.string()),
         triggerSource: z.string(),
         calculatedAt: z.date(),

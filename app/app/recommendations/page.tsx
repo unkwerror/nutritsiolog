@@ -30,6 +30,12 @@ type ProgramBlock = {
   relevant: boolean
 }
 type SectionScore = { section: string; title: string; total: number; outOfRange: number; score: number }
+type MarkerRecommendation = {
+  summary: string | null
+  steps: string[]
+  foods: { add: string[]; avoid: string[] } | null
+  topics: string[]
+}
 type Finding = {
   key: string
   display: string
@@ -39,6 +45,8 @@ type Finding = {
   optimumMin: number | null
   optimumMax: number | null
   source: 'catalog' | 'lab'
+  status: 'mild' | 'severe'
+  recommendation?: MarkerRecommendation
 }
 type Lifehack = { title: string; text: string }
 type Recommendations = {
@@ -63,6 +71,34 @@ const SEV: Record<Signal['severity'], { c: string; dot: string; l: string; ring:
   info: { c: 'rgba(255,255,255,0.55)', dot: 'rgba(255,255,255,0.5)', l: 'Рекомендация', ring: 'rgba(255,255,255,0.14)' },
   warning: { c: '#ffcf7a', dot: '#ffc850', l: 'Внимание', ring: 'rgba(255,200,80,0.35)' },
   critical: { c: '#ff9a7a', dot: '#ff8a6a', l: 'Важно', ring: 'rgba(255,120,90,0.4)' },
+}
+
+// Сила отклонения маркера — единая палитра с экраном анализа (жёлтый/красный)
+const FINDING_SEV: Record<Finding['status'], { c: string; bg: string; bd: string; label: string }> = {
+  mild: { c: '#fbbf24', bg: 'rgba(251,191,36,0.06)', bd: 'rgba(251,191,36,0.24)', label: 'Умеренное' },
+  severe: { c: '#f87171', bg: 'rgba(248,113,113,0.07)', bd: 'rgba(248,113,113,0.28)', label: 'Сильное' },
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.3 }} style={{ flexShrink: 0, color: 'rgba(255,255,255,0.4)', display: 'grid', placeItems: 'center' }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+    </motion.span>
+  )
+}
+
+// Кнопка «показать все / свернуть» — дозируем длинные списки
+function ShowMoreBar({ expanded, hiddenCount, onToggle }: { expanded: boolean; hiddenCount: number; onToggle: () => void }) {
+  if (hiddenCount <= 0) return null
+  return (
+    <button
+      onClick={onToggle}
+      style={{ marginTop: 12, width: '100%', minHeight: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--font-sans)', fontSize: 13.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+    >
+      {expanded ? 'Свернуть' : `Показать все · ещё ${hiddenCount}`}
+      <Chevron open={expanded} />
+    </button>
+  )
 }
 
 const CATEGORY_ICON: Record<CategoryKey, string> = {
@@ -98,6 +134,7 @@ export default function RecommendationsPage() {
   const [filter, setFilter] = useState<FilterKey>('all')
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [openBlock, setOpenBlock] = useState<string | null>(null)
+  const [showAllProgram, setShowAllProgram] = useState(false)
 
   const loadData = useCallback(() => {
     setLoaded(false)
@@ -161,7 +198,7 @@ export default function RecommendationsPage() {
 
               {signals.length > 0 && (
                 <>
-                  <SectionTitle icon="insight" eyebrow="Персональные сигналы" title="Что важно сейчас" />
+                  <SectionTitle icon="insight" eyebrow="Персональные сигналы" title="Что важно сейчас" style={{ marginTop: 'clamp(2.25rem,6vw,3.5rem)' }} />
                   <FilterBar filters={availableFilters} active={filter} onChange={setFilter} />
                   <motion.div layout style={{ marginTop: 18 }}>
                     <AnimatePresence mode="popLayout">
@@ -180,14 +217,15 @@ export default function RecommendationsPage() {
               )}
 
               <SectionTitle icon="leaf" eyebrow="Базовая программа" title="Образ жизни" style={{ marginTop: 'clamp(2.5rem,6vw,4rem)' }} />
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px' }}>
-                Фундамент из 11 направлений от нутрициолога. Разделы, отмеченные золотом, особенно важны для вас по данным анкеты.
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px', maxWidth: '38rem' }}>
+                Фундамент от нутрициолога. Разделы, отмеченные золотом, особенно важны для вас по данным анкеты.
               </p>
               <div style={{ display: 'grid', gap: 12 }}>
-                {program.map((b, i) => (
+                {(showAllProgram ? program : program.slice(0, 5)).map((b, i) => (
                   <ProgramCard key={b.key} block={b} index={i} isOpen={openBlock === b.key} onToggle={() => setOpenBlock((k) => (k === b.key ? null : b.key))} />
                 ))}
               </div>
+              <ShowMoreBar expanded={showAllProgram} hiddenCount={showAllProgram ? 0 : Math.max(0, program.length - 5)} onToggle={() => setShowAllProgram((v) => !v)} />
 
               <InflammationPanel data={data!} />
 
@@ -253,72 +291,165 @@ function ScoreHero({ data }: { data: Recommendations }) {
   )
 }
 
-// ── Marker findings: «ваше значение vs оптимум» ─────────────────────────────
+// ── Marker findings: «ваше значение vs оптимум» с силой отклонения и советом ──
+const fmtNum = (n: number | null) => (n === null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ''))
+
+const FINDINGS_PREVIEW = 4
+
 function FindingsPanel({ findings, sections }: { findings: Finding[]; sections: SectionScore[] }) {
-  const fmt = (n: number | null) => (n === null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ''))
+  const [openKey, setOpenKey] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
+
+  const severe = findings.filter((f) => f.status === 'severe').length
+  const mild = findings.length - severe
+  const visible = showAll ? findings : findings.slice(0, FINDINGS_PREVIEW)
+  const hidden = findings.length - visible.length
+
   return (
-    <div style={{ marginTop: 'clamp(2rem,5vw,3rem)' }}>
+    <section style={{ marginTop: 'clamp(2.25rem,6vw,3.5rem)' }}>
       <SectionTitle icon="lab" eyebrow="Анализы" title="Отклонения от оптимума" />
+
+      {findings.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, border: '1px solid rgba(150,210,140,0.22)', background: 'rgba(150,210,140,0.05)', padding: '16px 18px' }}>
+          <span style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 32, height: 32, borderRadius: 9, background: 'rgba(150,210,140,0.14)', color: '#a8e0a0', fontSize: 17 }}>✓</span>
+          <p style={{ fontSize: 14.5, color: 'rgba(255,255,255,0.8)', lineHeight: 1.55, margin: 0 }}>Все распознанные показатели в пределах оптимума — отличная работа.</p>
+        </div>
+      ) : (
+        <>
+          {/* Дозированное резюме: сколько и насколько сильно */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', margin: '0 0 16px' }}>
+            {severe > 0 && <Legend color={FINDING_SEV.severe.c} label={`${severe} сильных`} />}
+            {mild > 0 && <Legend color={FINDING_SEV.mild.c} label={`${mild} умеренных`} />}
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {visible.map((f, i) => (
+              <FindingCard
+                key={f.key}
+                f={f}
+                index={i}
+                isOpen={openKey === f.key}
+                onToggle={() => setOpenKey((k) => (k === f.key ? null : f.key))}
+              />
+            ))}
+          </div>
+
+          <ShowMoreBar expanded={showAll} hiddenCount={showAll ? 0 : hidden} onToggle={() => setShowAll((v) => !v)} />
+        </>
+      )}
+
+      {/* Баллы по разделам — второстепенное, ниже findings и мельче */}
       {sections.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 18px' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '20px 0 0' }}>
           {sections.map((s) => (
-            <span key={s.section} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', fontSize: 12.5 }}>
-              <span style={{ color: 'rgba(255,255,255,0.7)' }}>{s.title}</span>
+            <span key={s.section} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.09)', background: 'rgba(255,255,255,0.025)', fontSize: 12 }}>
+              <span style={{ color: 'rgba(255,255,255,0.6)' }}>{s.title}</span>
               <span className="font-display" style={{ color: s.score >= 85 ? '#a8e6a0' : s.score >= 60 ? 'var(--gold)' : '#ff8a6a' }}>{s.score}</span>
             </span>
           ))}
         </div>
       )}
-      {findings.length === 0 ? (
-        <p style={{ fontSize: 14.5, color: '#a8e0a0', lineHeight: 1.6, margin: 0 }}>Все распознанные показатели в пределах оптимума — отличная работа.</p>
-      ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {findings.map((f, i) => {
-            const isLow = f.direction === 'low'
-            const c = isLow ? '#7bb0ff' : '#ff9a7a'
-            return (
-              <motion.div
-                key={f.key}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.25) }}
-                style={{ display: 'flex', alignItems: 'center', gap: 14, borderRadius: 13, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.025)', padding: '13px 15px' }}
-              >
-                <span style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 9, background: `${c}1f`, color: c, fontSize: 17 }}>
-                  {isLow ? '↓' : '↑'}
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#fff', fontSize: 14.5, lineHeight: 1.3 }}>{f.display}</span>
-                    {f.source === 'lab' && (
-                      <span title="Оценено по норме из бланка — нет в справочнике нутрициолога" style={{ fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 5, padding: '1px 5px' }}>
-                        по лаборатории
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-                    {isLow ? 'ниже' : 'выше'} {f.source === 'lab' ? 'нормы' : 'оптимума'} {fmt(f.optimumMin)}–{fmt(f.optimumMax)}
-                  </span>
-                </span>
-                <span className="font-display" style={{ flexShrink: 0, fontSize: 20, color: c }}>{fmt(f.value)}</span>
-              </motion.div>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    </section>
+  )
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: 'rgba(255,255,255,0.6)' }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+      {label}
+    </span>
+  )
+}
+
+function FindingCard({ f, index, isOpen, onToggle }: { f: Finding; index: number; isOpen: boolean; onToggle: () => void }) {
+  const sev = FINDING_SEV[f.status]
+  const isLow = f.direction === 'low'
+  const rec = f.recommendation
+  const hasRec = !!rec && (!!rec.summary || rec.steps.length > 0 || !!rec.foods)
+
+  return (
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-30px' }}
+      transition={{ duration: 0.32, delay: Math.min(index * 0.04, 0.2) }}
+      style={{ borderRadius: 14, border: `1px solid ${isOpen ? sev.bd : 'rgba(255,255,255,0.1)'}`, background: isOpen ? sev.bg : 'rgba(255,255,255,0.025)', overflow: 'hidden', transition: 'border-color .25s, background .25s' }}
+    >
+      <button
+        onClick={hasRec ? onToggle : undefined}
+        aria-expanded={hasRec ? isOpen : undefined}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 15px', background: 'none', border: 'none', textAlign: 'left', cursor: hasRec ? 'pointer' : 'default' }}
+      >
+        {/* Направление + сила отклонения (цвет) */}
+        <span style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 36, height: 36, borderRadius: 10, background: `${sev.c}1f`, color: sev.c, fontSize: 18 }}>
+          {isLow ? '↓' : '↑'}
+        </span>
+
+        {/* Название + подпись «ниже/выше оптимума X–Y» */}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span style={{ color: '#fff', fontSize: 14.5, lineHeight: 1.3 }}>{f.display}</span>
+            {f.source === 'lab' && (
+              <span title="Оценено по норме из бланка — нет в справочнике нутрициолога" style={{ fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 5, padding: '1px 5px' }}>
+                лаб.
+              </span>
+            )}
+          </span>
+          <span style={{ display: 'block', fontSize: 12.5, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>
+            {sev.label} · {isLow ? 'ниже' : 'выше'} {f.source === 'lab' ? 'нормы' : 'оптимума'} {fmtNum(f.optimumMin)}–{fmtNum(f.optimumMax)}
+          </span>
+        </span>
+
+        {/* Значение + шеврон */}
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="font-display" style={{ fontSize: 20, color: sev.c, lineHeight: 1 }}>{fmtNum(f.value)}</span>
+          {hasRec && <Chevron open={isOpen} />}
+        </span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {hasRec && isOpen && rec && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }} style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '2px 15px 15px 15px' }}>
+              {/* Отбивка от шапки карточки */}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '0 0 13px' }} />
+              {rec.summary && (
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', lineHeight: 1.6, margin: '0 0 12px' }}>{rec.summary}</p>
+              )}
+              {rec.steps.length > 0 && (
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {rec.steps.map((s, i) => (
+                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.75)', lineHeight: 1.55 }}>
+                      <span style={{ flexShrink: 0, marginTop: 7, width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,230,146,0.7)' }} />
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {rec.foods && (rec.foods.add.length > 0 || rec.foods.avoid.length > 0) && (
+                <FoodLists foods={{ add: rec.foods.add.length ? rec.foods.add : undefined, avoid: rec.foods.avoid.length ? rec.foods.avoid : undefined }} />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.article>
   )
 }
 
 // ── Lifehacks: живые ежедневные приёмы ──────────────────────────────────────
+const LIFEHACKS_PREVIEW = 4
 function LifehacksPanel({ hacks }: { hacks: Lifehack[] }) {
+  const [showAll, setShowAll] = useState(false)
   if (hacks.length === 0) return null
+  const visible = showAll ? hacks : hacks.slice(0, LIFEHACKS_PREVIEW)
   return (
     <div style={{ marginTop: 'clamp(2.5rem,6vw,4rem)' }}>
       <SectionTitle icon="sparkle" eyebrow="Маленькие хитрости" title="Лайфхаки" />
       <div style={{ display: 'grid', gap: 12 }}>
-        {hacks.map((h, i) => (
+        {visible.map((h, i) => (
           <motion.div
             key={h.title}
             initial={{ opacity: 0, y: 10 }}
@@ -332,6 +463,7 @@ function LifehacksPanel({ hacks }: { hacks: Lifehack[] }) {
           </motion.div>
         ))}
       </div>
+      <ShowMoreBar expanded={showAll} hiddenCount={showAll ? 0 : hacks.length - visible.length} onToggle={() => setShowAll((v) => !v)} />
     </div>
   )
 }

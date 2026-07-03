@@ -55,7 +55,7 @@ function numToStr(n: number | null): string | null {
 }
 
 // Индекс сигналов нутрициолога по ключу маркера-источника: HGB → [сигнал «Дефицит железа»]
-function indexSignalsBySource(signals: Signal[]): Map<string, Signal[]> {
+export function indexSignalsBySource(signals: Signal[]): Map<string, Signal[]> {
     const map = new Map<string, Signal[]>()
     for (const s of signals) {
         for (const src of s.sources) {
@@ -75,7 +75,7 @@ function dedupe(items: string[]): string[] {
 
 // Собирает объединённую рекомендацию для маркера: персональный совет + шаги и
 // продукты из всех сигналов нутрициолога, ссылающихся на этот маркер.
-function buildRecommendation(
+export function buildRecommendation(
     key: string | null,
     direction: 'low' | 'high' | null,
     signalsByKey: Map<string, Signal[]>

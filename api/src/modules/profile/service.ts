@@ -18,7 +18,12 @@ import {
     LIFEHACKS,
     type ProgramBlock,
 } from './content.js'
-import { matchCatalogKey } from './matcher.js'
+import { matchCatalogKey, assessDeviation } from './matcher.js'
+import {
+    indexSignalsBySource,
+    buildRecommendation,
+    type MarkerRecommendation,
+} from './assessment.js'
 import { ProfileRepository, type ProfileCalculationRow } from './repository.js'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 
@@ -36,6 +41,11 @@ export type MarkerFinding = {
     optimumMax: number | null
     // 'catalog' — норма нутрициолога, 'lab' — норма из бланка (для маркеров вне справочника)
     source: 'catalog' | 'lab'
+    // Сила отклонения: 'mild' — умеренно (жёлтый), 'severe' — сильно (красный)
+    status: 'mild' | 'severe'
+    // Объединённая рекомендация (совет по маркеру + шаги/продукты нутрициолога).
+    // Опционально: в сохранённых снимках профиля не хранится (экономия jsonb).
+    recommendation?: MarkerRecommendation
 }
 
 export type RecommendationsView = {
@@ -147,18 +157,31 @@ export class ProfileService {
             }
         }
 
+        // Индекс сигналов нутрициолога по маркеру — для мерджа рекомендаций
+        const signalsByKey = indexSignalsBySource(signals)
+
         const findings: MarkerFinding[] = [...evals.values()]
             .filter((e) => e.isOutOfRange && e.direction)
-            .map((e) => ({
-                key: e.key,
-                display: e.display,
-                section: e.section,
-                direction: e.direction as 'low' | 'high',
-                value: valueByKey.get(e.key) ?? null,
-                optimumMin: e.optimum?.min ?? null,
-                optimumMax: e.optimum?.max ?? null,
-                source: e.source,
-            }))
+            .map((e) => {
+                const value = valueByKey.get(e.key) ?? null
+                const direction = e.direction as 'low' | 'high'
+                // Градация силы отклонения по оптимуму/норме
+                const dev = assessDeviation(value, e.optimum)
+                return {
+                    key: e.key,
+                    display: e.display,
+                    section: e.section,
+                    direction,
+                    value,
+                    optimumMin: e.optimum?.min ?? null,
+                    optimumMax: e.optimum?.max ?? null,
+                    source: e.source,
+                    status: dev?.severity ?? 'mild',
+                    recommendation: buildRecommendation(e.key, direction, signalsByKey),
+                }
+            })
+            // Сильные отклонения — выше умеренных (важное — вперёд)
+            .sort((a, b) => (a.status === b.status ? 0 : a.status === 'severe' ? -1 : 1))
 
         // Базовая программа: помечаем блоки, релевантные тегам анкеты, и поднимаем их выше
         const program: ProgramBlockView[] = LIFESTYLE_PROGRAM.map((b) => ({
@@ -275,7 +298,8 @@ export class ProfileService {
             healthScore: view.healthScore,
             sectionScores: view.sectionScores,
             signals: view.signals,
-            findings: view.findings,
+            // В снимок не кладём объёмные рекомендации (пересчитываются на чтении)
+            findings: view.findings.map(({ recommendation: _r, ...rest }) => rest),
             tags,
             triggerSource,
         })
