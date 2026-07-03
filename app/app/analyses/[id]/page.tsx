@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
-import { apiRequest, getAccessToken } from '@/lib/api'
+import { apiRequest, apiFetch, getAccessToken } from '@/lib/api'
 import { analysisName } from '@/lib/format'
 import { AppBackground, AppNav } from '@/components/ds/AppCommon'
 
@@ -646,6 +646,43 @@ export default function AnalysisDetailPage({ params }: PageProps) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Просмотр исходного загруженного файла (PDF/JPEG/PNG) из MinIO
+  const [preview, setPreview] = useState<{ url: string; mime: string } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
+  async function openFile() {
+    if (previewLoading) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    try {
+      const res = await apiFetch(`/api/v1/analysis/${id}/file`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      setPreview({ url, mime: blob.type || res.headers.get('Content-Type') || '' })
+    } catch (e: unknown) {
+      setPreviewError(e instanceof Error ? e.message : 'Не удалось загрузить файл')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  function closeFile() {
+    setPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url)
+      return null
+    })
+  }
+
+  // Освобождаем object URL при размонтировании
+  useEffect(() => () => {
+    setPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url)
+      return null
+    })
+  }, [])
+
   const refreshAnalysis = useCallback(async () => {
     const data = await apiRequest<AnalysisDetail>(`/api/v1/analysis/${id}`)
     setAnalysis(data)
@@ -850,8 +887,25 @@ export default function AnalysisDetailPage({ params }: PageProps) {
           )}
         </motion.div>
 
+        {/* Просмотр исходного файла */}
+        <div className="mt-5 flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => void openFile()}
+            disabled={previewLoading}
+            className="inline-flex items-center gap-2 rounded-full border px-4 h-10 text-[13px] transition"
+            style={{ color: '#ffe692', borderColor: 'rgba(255,230,146,0.4)', background: 'rgba(255,230,146,0.06)', cursor: previewLoading ? 'default' : 'pointer', opacity: previewLoading ? 0.7 : 1 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            {previewLoading ? 'Загрузка…' : 'Посмотреть исходный файл'}
+          </button>
+          {previewError && <span className="text-[13px]" style={{ color: 'rgba(248,113,113,0.9)' }}>{previewError}</span>}
+        </div>
+
         {/* Divider */}
-        <div className="border-t border-white/10 mb-8" />
+        <div className="border-t border-white/10 mb-8 mt-6" />
 
         {/* Markers header + add control */}
         {(analysis.status === 'done' || analysis.markers.length > 0) && (
@@ -908,6 +962,46 @@ export default function AnalysisDetailPage({ params }: PageProps) {
         )}
         </div>
       </div>
+
+      {/* Просмотр исходного файла */}
+      <AnimatePresence>
+        {preview && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col"
+            style={{ background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(4px)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeFile}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <span className="font-sans text-[13px] text-white/60">Исходный файл</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={preview.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-9 px-3 rounded-lg text-[13px]"
+                  style={{ color: '#ffe692', border: '1px solid rgba(255,230,146,0.35)' }}
+                >
+                  Открыть в новой вкладке
+                </a>
+                <button onClick={closeFile} aria-label="Закрыть" className="grid place-items-center w-9 h-9 rounded-lg" style={{ border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.8)' }}>
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 flex items-center justify-center p-4 pt-0" onClick={(e) => e.stopPropagation()}>
+              {preview.mime.startsWith('image') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview.url} alt="Исходный файл анализа" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 12 }} />
+              ) : (
+                <iframe src={preview.url} title="Исходный файл анализа" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12, background: '#fff' }} />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit drawer */}
       <AnimatePresence>

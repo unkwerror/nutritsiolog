@@ -7,6 +7,7 @@ import { QuestionnaireRepository } from '../questionnaire/repository.js'
 import { MinioStorage } from './infrastructure/storage.js'
 import { BullMQQueue } from './infrastructure/queue.js'
 import { ValidationError } from '../../core/errors.js'
+import { AnalysisNotFoundError } from './errors.js'
 import { createSubscriber, redis } from '../../core/redis.js'
 import { config } from '../../core/config.js'
 
@@ -344,6 +345,37 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const analysis = await service.getAnalysis(numId, request.user.id)
 
             return reply.send(analysis)
+        }
+    )
+
+    // Исходный загруженный файл (для визуального просмотра). Стримим из MinIO
+    // через API (MinIO внутренний, наружу не смотрит). IDOR: 404 для «не моё».
+    fastify.get(
+        '/analysis/:id/file',
+        {
+            schema: {
+                tags: ['Analysis'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({ id: z.string() }),
+                description: 'Возвращает исходный файл анализа (PDF/JPEG/PNG) для просмотра',
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const numId = Number(request.params.id)
+            if (!Number.isInteger(numId) || numId < 1)
+                throw new ValidationError('INVALID_ID', 'Invalid analysis id')
+
+            const repo = new AnalysisRepository(request.server.db)
+            const analysis = await repo.findByIdAndUser(numId, request.user.id)
+            if (!analysis) throw new AnalysisNotFoundError()
+
+            const buffer = await storage.getBuffer(analysis.fileKey)
+            return reply
+                .header('Content-Type', analysis.fileMimeType ?? 'application/octet-stream')
+                .header('Content-Disposition', `inline; filename="analysis-${numId}"`)
+                .header('Cache-Control', 'private, max-age=60')
+                .send(buffer)
         }
     )
 
