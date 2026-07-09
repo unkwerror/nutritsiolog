@@ -166,7 +166,7 @@ export default function AdminPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<UserDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [tab, setTab] = useState<'anketa' | 'analyses' | 'recs' | 'dynamics'>('anketa')
+  const [tab, setTab] = useState<'anketa' | 'analyses' | 'recs' | 'dynamics'>('dynamics')
   const [pdfBusy, setPdfBusy] = useState(false)
   const [view, setView] = useState<'users' | 'leads'>('users')
 
@@ -204,7 +204,7 @@ export default function AdminPage() {
       return
     }
     setDetailLoading(true)
-    setTab('anketa')
+    setTab('dynamics')
     apiRequest<UserDetail>(`/api/v1/admin/users/${selectedId}`)
       .then(setDetail)
       .catch(() => setDetail(null))
@@ -464,10 +464,10 @@ function AdminDetail({
   ].filter(Boolean)
 
   const TABS: [typeof tab, string][] = [
+    ['dynamics', 'Динамика'],
     ['anketa', 'Анкета'],
     ['analyses', 'Анализы'],
     ['recs', 'Рекомендации'],
-    ['dynamics', 'Динамика'],
   ]
 
   return (
@@ -541,7 +541,7 @@ function AdminDetail({
               padding: '8px 14px 14px',
               fontSize: 13.5,
               letterSpacing: '0.02em',
-              color: tab === k ? '#fff' : 'var(--ink-muted)',
+              color: tab === k ? '#fff' : k === 'dynamics' ? 'var(--gold)' : 'var(--ink-muted)',
             }}
           >
             {label}
