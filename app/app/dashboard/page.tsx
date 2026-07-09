@@ -134,6 +134,10 @@ export default function DashboardPage() {
             </ProgressRing>
           </FadeUp>
 
+          <FadeUp delay={0.06}>
+            <DynamicsSummary style={{ marginBottom: 32 }} />
+          </FadeUp>
+
           {next && (
             <FadeUp delay={0.08}>
               <motion.button
@@ -250,11 +254,7 @@ export default function DashboardPage() {
             )}
           </FadeUp>
 
-          <FadeUp delay={0.3} style={{ marginTop: 28 }}>
-            <DynamicsSummary />
-          </FadeUp>
-
-          <FadeUp delay={0.32} style={{ marginTop: 20 }}>
+          <FadeUp delay={0.32} style={{ marginTop: 28 }}>
             <ConsultCta />
           </FadeUp>
 

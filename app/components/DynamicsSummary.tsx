@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { Icon } from '@/components/ds/AppCommon'
@@ -20,8 +20,9 @@ function fmtDate(iso: string): string {
 }
 
 // Сводка прогресса на дашборде: «N маркеров улучшились с прошлого замера».
-// Скрыта, пока нет двух замеров хотя бы одного маркера.
-export default function DynamicsSummary() {
+// Скрыта, пока нет двух замеров хотя бы одного маркера — внешний отступ
+// поэтому передаётся через style, а не ставится обёрткой (иначе пустой зазор).
+export default function DynamicsSummary({ style }: { style?: CSSProperties }) {
   const [summary, setSummary] = useState<Summary | null>(null)
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function DynamicsSummary() {
         padding: '1.25rem 1.35rem',
         background: 'rgba(255,255,255,0.04)',
         border: '1px solid rgba(255,255,255,0.09)',
+        ...style,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
