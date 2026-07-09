@@ -232,6 +232,41 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
                             })
                             .nullable(),
                         series: z.array(MarkerSeriesSchema),
+                        questionnaire: z
+                            .object({
+                                filledCount: z.number(),
+                                lastFilledAt: z.string(),
+                                body: z.array(
+                                    z.object({
+                                        key: z.enum(['weight', 'waist', 'bmi']),
+                                        display: z.string(),
+                                        unit: z.string(),
+                                        optimumMin: z.number().nullable(),
+                                        optimumMax: z.number().nullable(),
+                                        points: z.array(
+                                            z.object({ date: z.string(), value: z.number() })
+                                        ),
+                                    })
+                                ),
+                                changes: z.array(
+                                    z.object({
+                                        key: z.string(),
+                                        label: z.string(),
+                                        prevLabel: z.string(),
+                                        currLabel: z.string(),
+                                        trend: z.enum(['improved', 'worsened', 'stable']),
+                                    })
+                                ),
+                                symptoms: z
+                                    .object({
+                                        prevCount: z.number(),
+                                        currCount: z.number(),
+                                        gone: z.array(z.string()),
+                                        appeared: z.array(z.string()),
+                                    })
+                                    .nullable(),
+                            })
+                            .nullable(),
                     }),
                 },
             },

@@ -21,6 +21,15 @@ import {
 import { matchCatalogKey, assessDeviation, getCatalogEntry, optimumFor } from './matcher.js'
 import { parseRuDate, buildSummary, type MarkerSeries, type DynamicsSummary } from './dynamics.js'
 import {
+    buildBodySeries,
+    compareAnswers,
+    compareSymptoms,
+    type BodySeries,
+    type AnswerChange,
+    type SymptomChanges,
+} from '../questionnaire/dynamics.js'
+import { type QuestionnaireAnswers } from '../questionnaire/schemas.js'
+import {
     indexSignalsBySource,
     buildRecommendation,
     type MarkerRecommendation,
@@ -321,14 +330,16 @@ export class ProfileService {
     // каталога + сводка «с прошлого раза». Питает страницу /dynamics и
     // блок прогресса на дашборде.
     async getDynamics(userId: string): Promise<DynamicsView> {
-        const [rows, idToKey, questionnaire] = await Promise.all([
+        const [rows, idToKey, questionnaireRows] = await Promise.all([
             this.profileRepo.findMarkerTimeSeries(userId),
             this.profileRepo.loadCatalogIdToKey(),
-            this.questionnaireRepo.findLatestByUser(userId),
+            this.questionnaireRepo.findAllWithAnswers(userId),
         ])
 
-        const answers = questionnaire?.answers as { gender?: string } | null
-        const gender = (answers?.gender as 'male' | 'female' | null) ?? null
+        const latestAnswers = (questionnaireRows.at(-1)?.answers ?? null) as {
+            gender?: string
+        } | null
+        const gender = (latestAnswers?.gender as 'male' | 'female' | null) ?? null
 
         // Группировка по каноническому ключу; catalogId от worker приоритетнее,
         // fallback-матчинг — для старых строк с NULL catalog_id
@@ -383,11 +394,45 @@ export class ProfileService {
             (a, b) => b.points.length - a.points.length || a.section.localeCompare(b.section)
         )
 
-        return { summary: buildSummary(series), series }
+        return {
+            summary: buildSummary(series),
+            series,
+            questionnaire: buildQuestionnaireDynamics(questionnaireRows),
+        }
     }
+}
+
+// Блок динамики анкеты: ряды тела + сравнение двух последних заполнений
+function buildQuestionnaireDynamics(
+    rows: Array<{ answers: unknown; createdAt: Date }>
+): QuestionnaireDynamics | null {
+    if (rows.length === 0) return null
+    const typed = rows.map((r) => ({
+        answers: r.answers as QuestionnaireAnswers,
+        createdAt: r.createdAt,
+    }))
+    const last = typed.at(-1)!
+    const prev = typed.length >= 2 ? typed.at(-2)! : null
+
+    return {
+        filledCount: typed.length,
+        lastFilledAt: last.createdAt.toISOString(),
+        body: buildBodySeries(typed),
+        changes: prev ? compareAnswers(prev.answers, last.answers) : [],
+        symptoms: prev ? compareSymptoms(prev.answers, last.answers) : null,
+    }
+}
+
+export type QuestionnaireDynamics = {
+    filledCount: number
+    lastFilledAt: string
+    body: BodySeries[]
+    changes: AnswerChange[]
+    symptoms: SymptomChanges | null
 }
 
 export type DynamicsView = {
     summary: DynamicsSummary | null
     series: MarkerSeries[]
+    questionnaire: QuestionnaireDynamics | null
 }

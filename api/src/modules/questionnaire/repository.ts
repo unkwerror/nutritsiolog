@@ -27,6 +27,21 @@ export class QuestionnaireRepository {
         return row ?? null
     }
 
+    // Полные заполнения с ответами (asc) — для динамики анкеты (вес/талия/ответы)
+    async findAllWithAnswers(userId: string, limit = 24) {
+        const rows = await this.db
+            .select({
+                id: questionnaireResponses.id,
+                answers: questionnaireResponses.answers,
+                createdAt: questionnaireResponses.createdAt,
+            })
+            .from(questionnaireResponses)
+            .where(eq(questionnaireResponses.userId, userId))
+            .orderBy(desc(questionnaireResponses.createdAt))
+            .limit(limit)
+        return rows.reverse() // хронологический порядок для временных рядов
+    }
+
     // История заполнений без тяжёлого answers-jsonb — для динамики
     async findAllByUser(userId: string, limit = 50) {
         return this.db
