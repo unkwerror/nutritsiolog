@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { AuthProvider } from '@/lib/auth'
+import PwaProvider from '@/components/pwa/PwaProvider'
 // Self-hosted fonts — no build-time Google Fonts network requests
 import '@fontsource-variable/commissioner'
 // Playfair Display — the brand display voice (headlines + wordmark, italic accents)
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru">
       <body className="font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
+        <PwaProvider />
       </body>
     </html>
   )
