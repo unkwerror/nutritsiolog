@@ -11,7 +11,14 @@ const FoodsSchema = z.object({
 const SignalSchema = z.object({
     id: z.string(),
     category: z.string(),
-    categoryKey: z.enum(['nutrition', 'vitamins', 'metabolism', 'hormones', 'inflammation', 'lifestyle']),
+    categoryKey: z.enum([
+        'nutrition',
+        'vitamins',
+        'metabolism',
+        'hormones',
+        'inflammation',
+        'lifestyle',
+    ]),
     title: z.string(),
     text: z.string(),
     detail: z.array(z.string()),
@@ -186,6 +193,53 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
                     warningCount: s.warningCount,
                 }))
             )
+        }
+    )
+
+    const MarkerSeriesSchema = z.object({
+        key: z.string(),
+        display: z.string(),
+        section: z.string(),
+        unit: z.string().nullable(),
+        optimumMin: z.number().nullable(),
+        optimumMax: z.number().nullable(),
+        points: z.array(
+            z.object({
+                analysisId: z.number(),
+                date: z.string(),
+                value: z.number(),
+            })
+        ),
+    })
+
+    // Динамика маркеров: серии значений по анализам + сводка «с прошлого раза».
+    // summary = null, пока ни у одного маркера нет двух замеров.
+    fastify.get(
+        '/profile/dynamics',
+        {
+            schema: {
+                tags: ['Profile'],
+                security: [{ bearerAuth: [] }],
+                response: {
+                    200: z.object({
+                        summary: z
+                            .object({
+                                improved: z.number(),
+                                worsened: z.number(),
+                                stable: z.number(),
+                                currentDate: z.string(),
+                                previousDate: z.string(),
+                            })
+                            .nullable(),
+                        series: z.array(MarkerSeriesSchema),
+                    }),
+                },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const svc = ProfileService.fromDb(request.server.db)
+            return reply.send(await svc.getDynamics(request.user.id))
         }
     )
 

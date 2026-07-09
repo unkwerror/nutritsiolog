@@ -1,6 +1,6 @@
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray, isNotNull, ne, lt } from 'drizzle-orm'
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { analyses, markers } from '../../db/schema.js'
+import { analyses, markers, markerCatalog } from '../../db/schema.js'
 
 type DB = PostgresJsDatabase
 
@@ -105,6 +105,36 @@ export class AnalysisRepository {
 
     // Append-only (034/039): each edit is a new row; only is_current=true rows are
     // the latest revision of each (name, method) pair — старые ревизии не отдаём.
+    // Значения маркеров из более ранних анализов пользователя — для дельт
+    // «prev → curr» в деталях анализа. Свежие сверху: сервис берёт первое
+    // вхождение на канонический ключ.
+    async findPreviousMarkerValues(userId: string, excludeAnalysisId: number, beforeDate: Date) {
+        return this.db
+            .select({
+                name: markers.name,
+                code: markers.code,
+                value: markers.value,
+                catalogKey: markerCatalog.key,
+                sampleTakenAt: analyses.sampleTakenAt,
+                analysisCreatedAt: analyses.createdAt,
+            })
+            .from(markers)
+            .innerJoin(analyses, eq(markers.analysisId, analyses.id))
+            .leftJoin(markerCatalog, eq(markers.catalogId, markerCatalog.id))
+            .where(
+                and(
+                    eq(analyses.userId, userId),
+                    eq(analyses.status, 'done'),
+                    eq(analyses.isArchived, false),
+                    eq(markers.isCurrent, true),
+                    isNotNull(markers.value),
+                    ne(analyses.id, excludeAnalysisId),
+                    lt(analyses.createdAt, beforeDate)
+                )
+            )
+            .orderBy(desc(analyses.createdAt), desc(markers.id))
+    }
+
     async findMarkersByAnalysisId(analysisId: number) {
         return this.db
             .select(markerColumns)

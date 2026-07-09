@@ -24,6 +24,10 @@ type MarkerAssessment = {
   optimumMax: string | null
   optimumSource: 'catalog' | 'lab' | null
   recommendation: MarkerRecommendation | null
+  // Динамика: последний более ранний замер того же маркера
+  previousValue: number | null
+  previousDate: string | null
+  trend: 'improved' | 'worsened' | 'stable' | null
 }
 
 type Marker = {
@@ -119,6 +123,22 @@ const STATUS_COLOR: Record<'normal' | 'mild' | 'severe', string> = {
   normal: 'rgba(255,255,255,0.9)',
   mild: '#fbbf24',
   severe: '#f87171',
+}
+
+// Тренд к прошлому замеру: «улучшение» = ближе к оптимуму (не сырое ↑/↓)
+const TREND_COLOR: Record<'improved' | 'worsened' | 'stable', string> = {
+  improved: '#a8e0a0',
+  worsened: '#ff9a8a',
+  stable: 'rgba(255,255,255,0.45)',
+}
+const TREND_SIGN: Record<'improved' | 'worsened' | 'stable', string> = {
+  improved: '↗',
+  worsened: '↘',
+  stable: '→',
+}
+
+function trimTrailingZeros(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '')
 }
 
 // Оптимальный коридор нутрициолога, если он посчитан для маркера
@@ -233,7 +253,7 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
         )}
       </div>
 
-      {/* Value + range */}
+      {/* Value + range + delta since last measurement */}
       <div className="shrink-0 text-right min-w-[5rem]">
         <p className="font-sans text-sm font-medium" style={{ color: valueColor }}>
           {arrow && <span className="text-[11px] mr-0.5">{arrow}</span>}
@@ -243,6 +263,15 @@ function MarkerRow({ marker, onClick }: MarkerRowProps) {
           )}
         </p>
         <p className="font-sans text-[13px] text-white/60 mt-0.5">{rangeLabel}</p>
+        {marker.assessment?.previousValue != null && (
+          <p
+            className="font-sans text-[12px] mt-0.5"
+            style={{ color: TREND_COLOR[marker.assessment.trend ?? 'stable'] }}
+          >
+            {TREND_SIGN[marker.assessment.trend ?? 'stable']} было{' '}
+            {trimTrailingZeros(marker.assessment.previousValue)}
+          </p>
+        )}
       </div>
 
       {/* Arrow */}

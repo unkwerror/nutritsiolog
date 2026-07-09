@@ -10,6 +10,8 @@ import { AppBackground, AppNav, ProgressRing, AnimatedNumber, Icon } from '@/com
 import { Button, StatusBadge, FadeUp, EASE_OUT } from '@/components/ds/primitives'
 import { formatDate, analysisName } from '@/lib/format'
 import { useAnalysesLive, type LiveState } from '@/lib/useAnalysesLive'
+import ConsultCta from '@/components/ConsultCta'
+import DynamicsSummary from '@/components/DynamicsSummary'
 
 type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 type AnalysisListItem = {
@@ -246,6 +248,14 @@ export default function DashboardPage() {
                 ))}
               </ul>
             )}
+          </FadeUp>
+
+          <FadeUp delay={0.3} style={{ marginTop: 28 }}>
+            <DynamicsSummary />
+          </FadeUp>
+
+          <FadeUp delay={0.32} style={{ marginTop: 20 }}>
+            <ConsultCta />
           </FadeUp>
 
           {isAdmin && (

@@ -26,4 +26,18 @@ export class QuestionnaireRepository {
             .limit(1)
         return row ?? null
     }
+
+    // История заполнений без тяжёлого answers-jsonb — для динамики
+    async findAllByUser(userId: string, limit = 50) {
+        return this.db
+            .select({
+                id: questionnaireResponses.id,
+                tags: questionnaireResponses.tags,
+                createdAt: questionnaireResponses.createdAt,
+            })
+            .from(questionnaireResponses)
+            .where(eq(questionnaireResponses.userId, userId))
+            .orderBy(desc(questionnaireResponses.createdAt))
+            .limit(limit)
+    }
 }

@@ -18,7 +18,8 @@ import {
     LIFEHACKS,
     type ProgramBlock,
 } from './content.js'
-import { matchCatalogKey, assessDeviation } from './matcher.js'
+import { matchCatalogKey, assessDeviation, getCatalogEntry, optimumFor } from './matcher.js'
+import { parseRuDate, buildSummary, type MarkerSeries, type DynamicsSummary } from './dynamics.js'
 import {
     indexSignalsBySource,
     buildRecommendation,
@@ -315,4 +316,78 @@ export class ProfileService {
         const rows = await this.profileRepo.findProfileCalculationHistory(userId, limit)
         return rows.map((row) => this.toSnapshot(row))
     }
+
+    // Динамика маркеров во времени: серии значений по каноническим ключам
+    // каталога + сводка «с прошлого раза». Питает страницу /dynamics и
+    // блок прогресса на дашборде.
+    async getDynamics(userId: string): Promise<DynamicsView> {
+        const [rows, idToKey, questionnaire] = await Promise.all([
+            this.profileRepo.findMarkerTimeSeries(userId),
+            this.profileRepo.loadCatalogIdToKey(),
+            this.questionnaireRepo.findLatestByUser(userId),
+        ])
+
+        const answers = questionnaire?.answers as { gender?: string } | null
+        const gender = (answers?.gender as 'male' | 'female' | null) ?? null
+
+        // Группировка по каноническому ключу; catalogId от worker приоритетнее,
+        // fallback-матчинг — для старых строк с NULL catalog_id
+        const byKey = new Map<string, MarkerSeries>()
+        // Один анализ = максимум одна точка на ключ (дубли внутри анализа игнорируем)
+        const seen = new Set<string>()
+
+        for (const r of rows) {
+            const key =
+                (r.catalogId !== null ? idToKey.get(r.catalogId) : null) ??
+                matchCatalogKey(r.name, r.code)
+            if (!key) continue // нет канонической идентичности — нечего рисовать
+
+            const dedupKey = `${key}|${r.analysisId}`
+            if (seen.has(dedupKey)) continue
+
+            const value = r.value !== null ? Number(r.value.replace(',', '.')) : null
+            if (value === null || !Number.isFinite(value)) continue
+
+            const entry = getCatalogEntry(key)
+            if (!entry) continue
+
+            let series = byKey.get(key)
+            if (!series) {
+                const opt = optimumFor(entry, gender)
+                series = {
+                    key,
+                    display: entry.display,
+                    section: entry.section,
+                    unit: entry.unit ?? r.unit,
+                    optimumMin: opt?.min ?? null,
+                    optimumMax: opt?.max ?? null,
+                    points: [],
+                }
+                byKey.set(key, series)
+            }
+
+            const date = parseRuDate(r.sampleTakenAt) ?? r.analysisCreatedAt
+            series.points.push({
+                analysisId: r.analysisId,
+                date: date.toISOString(),
+                value,
+            })
+            seen.add(dedupKey)
+        }
+
+        const series = [...byKey.values()]
+        // sampleTakenAt может переупорядочить точки относительно даты загрузки
+        for (const s of series) s.points.sort((a, b) => a.date.localeCompare(b.date))
+        // Многоточечные сверху, внутри группы — по разделу
+        series.sort(
+            (a, b) => b.points.length - a.points.length || a.section.localeCompare(b.section)
+        )
+
+        return { summary: buildSummary(series), series }
+    }
+}
+
+export type DynamicsView = {
+    summary: DynamicsSummary | null
+    series: MarkerSeries[]
 }

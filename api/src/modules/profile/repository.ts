@@ -1,6 +1,6 @@
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and, asc, isNotNull } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { markerCatalog, profileCalculations } from '../../db/schema.js'
+import { markerCatalog, profileCalculations, markers, analyses } from '../../db/schema.js'
 
 type DB = PostgresJsDatabase
 
@@ -52,7 +52,9 @@ export class ProfileRepository {
     }
 
     // Append-only (решение 034): расчёты профиля только INSERT, никаких UPDATE
-    async insertProfileCalculation(data: NewProfileCalculationInput): Promise<ProfileCalculationRow> {
+    async insertProfileCalculation(
+        data: NewProfileCalculationInput
+    ): Promise<ProfileCalculationRow> {
         const [row] = await this.db
             .insert(profileCalculations)
             .values(data)
@@ -81,5 +83,41 @@ export class ProfileRepository {
             .where(eq(profileCalculations.userId, userId))
             .orderBy(desc(profileCalculations.calculatedAt), desc(profileCalculations.id))
             .limit(limit)
+    }
+
+    // Все числовые значения текущих ревизий маркеров по готовым анализам —
+    // сырьё для временных рядов динамики. Группировка по каталогу — в сервисе.
+    async findMarkerTimeSeries(userId: string) {
+        return this.db
+            .select({
+                analysisId: markers.analysisId,
+                name: markers.name,
+                code: markers.code,
+                unit: markers.unit,
+                value: markers.value,
+                catalogId: markers.catalogId,
+                sampleTakenAt: analyses.sampleTakenAt,
+                analysisCreatedAt: analyses.createdAt,
+            })
+            .from(markers)
+            .innerJoin(analyses, eq(markers.analysisId, analyses.id))
+            .where(
+                and(
+                    eq(analyses.userId, userId),
+                    eq(analyses.status, 'done'),
+                    eq(analyses.isArchived, false),
+                    eq(markers.isCurrent, true),
+                    isNotNull(markers.value)
+                )
+            )
+            .orderBy(asc(analyses.createdAt), asc(markers.id))
+    }
+
+    // id каталога → key (для строк, где worker уже проставил catalog_id)
+    async loadCatalogIdToKey(): Promise<Map<number, string>> {
+        const rows = await this.db
+            .select({ id: markerCatalog.id, key: markerCatalog.key })
+            .from(markerCatalog)
+        return new Map(rows.map((r) => [r.id, r.key]))
     }
 }

@@ -87,6 +87,34 @@ const questionnaireRoutes: FastifyPluginAsyncZod = async (fastify) => {
             )
         }
     )
+
+    // История заполнений (анкета append-only) — для аннотаций на странице динамики
+    fastify.get(
+        '/questionnaire/history',
+        {
+            schema: {
+                tags: ['Questionnaire'],
+                security: [{ bearerAuth: [] }],
+                response: {
+                    200: z.array(
+                        z.object({
+                            id: z.number(),
+                            tags: z.array(z.string()),
+                            createdAt: z.date(),
+                        })
+                    ),
+                },
+            },
+            preHandler: [fastify.authenticate],
+        },
+        async (request, reply) => {
+            const repo = new QuestionnaireRepository(request.server.db)
+            const rows = await repo.findAllByUser(request.user.id)
+            return reply.send(
+                rows.map((r) => ({ id: r.id, tags: r.tags as string[], createdAt: r.createdAt }))
+            )
+        }
+    )
 }
 
 export default questionnaireRoutes

@@ -54,6 +54,10 @@ const MarkerAssessmentSchema = z.object({
     optimumMax: z.string().nullable(),
     optimumSource: z.enum(['catalog', 'lab']).nullable(),
     recommendation: MarkerRecommendationSchema.nullable(),
+    // Динамика: последний более ранний замер того же маркера (null — нет истории)
+    previousValue: z.number().nullable(),
+    previousDate: z.string().nullable(),
+    trend: z.enum(['improved', 'worsened', 'stable']).nullable(),
 })
 
 // Маркер с оценкой по оптимумам нутрициолога — только для детального ответа
@@ -299,7 +303,11 @@ const analysisRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 raw.write(
                     `data: ${JSON.stringify(
                         initialProgress !== undefined
-                            ? { status: analysis.status, analysisId: numId, progress: initialProgress }
+                            ? {
+                                  status: analysis.status,
+                                  analysisId: numId,
+                                  progress: initialProgress,
+                              }
                             : { status: analysis.status, analysisId: numId }
                     )}\n\n`
                 )

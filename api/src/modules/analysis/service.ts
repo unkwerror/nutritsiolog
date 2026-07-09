@@ -4,6 +4,8 @@ import { type QueuePort } from './infrastructure/queue.js'
 import { type AnalysisRepository } from './repository.js'
 import { type QuestionnaireRepository } from '../questionnaire/repository.js'
 import { assessMarkers, type AssessableMarker } from '../profile/assessment.js'
+import { matchCatalogKey } from '../profile/matcher.js'
+import { computeTrend, parseRuDate } from '../profile/dynamics.js'
 import { type Gender } from '../profile/optimums.js'
 import { AnalysisNotFoundError, NothingUploadedError } from './errors.js'
 import {
@@ -147,10 +149,47 @@ export class AnalysisService {
         }))
         const assessments = assessMarkers(assessInput, gender, tags)
 
-        const markersWithAssessment = analysisMarkers.map((m, i) => ({
-            ...m,
-            assessment: assessments[i]!,
-        }))
+        // Дельты «prev → curr»: последнее значение того же маркера из более
+        // ранних анализов. Тренд — по дистанции до оптимума (улучшение = ближе).
+        const prevRows = await this.repo.findPreviousMarkerValues(
+            userId,
+            analysis.id,
+            analysis.createdAt
+        )
+        const prevByKey = new Map<string, { value: number; date: string }>()
+        for (const r of prevRows) {
+            const key = r.catalogKey ?? matchCatalogKey(r.name, r.code)
+            if (!key || prevByKey.has(key)) continue // строки отсортированы: первое = свежайшее
+            const n = r.value !== null ? Number(r.value.replace(',', '.')) : null
+            if (n === null || !Number.isFinite(n)) continue
+            const date = parseRuDate(r.sampleTakenAt) ?? r.analysisCreatedAt
+            prevByKey.set(key, { value: n, date: date.toISOString() })
+        }
+
+        const markersWithAssessment = analysisMarkers.map((m, i) => {
+            const assessment = assessments[i]!
+            const key = matchCatalogKey(m.name, m.code)
+            const prev = key ? prevByKey.get(key) : undefined
+            const curr = m.value !== null ? Number(m.value.replace(',', '.')) : null
+
+            let trend: 'improved' | 'worsened' | 'stable' | null = null
+            if (prev && curr !== null && Number.isFinite(curr)) {
+                trend = computeTrend(prev.value, curr, {
+                    min: assessment.optimumMin !== null ? Number(assessment.optimumMin) : null,
+                    max: assessment.optimumMax !== null ? Number(assessment.optimumMax) : null,
+                })
+            }
+
+            return {
+                ...m,
+                assessment: {
+                    ...assessment,
+                    previousValue: prev && curr !== null ? prev.value : null,
+                    previousDate: prev && curr !== null ? prev.date : null,
+                    trend,
+                },
+            }
+        })
 
         return { ...analysis, markers: markersWithAssessment }
     }
@@ -267,8 +306,7 @@ export class AnalysisService {
                             : null
                         : existing.value,
                 // Текстовый результат: берём из правки, иначе переносим прежний
-                valueText:
-                    input.valueText !== undefined ? input.valueText : existing.valueText,
+                valueText: input.valueText !== undefined ? input.valueText : existing.valueText,
                 unit: input.unit !== undefined ? input.unit : existing.unit,
                 referenceMin:
                     input.referenceMin !== undefined
