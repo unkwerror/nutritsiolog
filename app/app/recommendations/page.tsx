@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { apiRequest, getAccessToken } from '@/lib/api'
 import { AppBackground, AppNav, Icon, ProgressRing, AnimatedNumber } from '@/components/ds/AppCommon'
 import { Button } from '@/components/ds/primitives'
+import ConsultCta from '@/components/ConsultCta'
 
 type Foods = { add?: string[]; avoid?: string[] }
 type CategoryKey = 'nutrition' | 'vitamins' | 'metabolism' | 'hormones' | 'inflammation' | 'lifestyle'
@@ -230,6 +231,8 @@ export default function RecommendationsPage() {
               <InflammationPanel data={data!} />
 
               <LifehacksPanel hacks={data!.lifehacks} />
+
+              <ConsultCta style={{ marginTop: 'clamp(2.25rem,6vw,3.5rem)' }} />
 
               <div style={{ marginTop: 40, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Button variant="gold" onClick={() => router.push('/analyses/upload')}>

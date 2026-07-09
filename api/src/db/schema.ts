@@ -229,7 +229,9 @@ export const markerOptimums = pgTable(
         optimumMax: numeric('optimum_max', { precision: 12, scale: 4 }),
         unit: varchar('unit', { length: 50 }),
     },
-    (table) => [uniqueIndex('marker_optimums_catalog_gender_unique').on(table.catalogId, table.gender)]
+    (table) => [
+        uniqueIndex('marker_optimums_catalog_gender_unique').on(table.catalogId, table.gender),
+    ]
 )
 
 // ── История расчётов профиля (решения 033/034 — append-only) ──────────────────
@@ -243,10 +245,18 @@ export const profileCalculations = pgTable(
             .references(() => users.id),
         profileType: varchar('profile_type', { length: 30 }).notNull(),
         healthScore: integer('health_score'),
-        sectionScores: jsonb('section_scores').notNull().$default(() => []),
-        signals: jsonb('signals').notNull().$default(() => []),
-        findings: jsonb('findings').notNull().$default(() => []),
-        tags: jsonb('tags').notNull().$default(() => []),
+        sectionScores: jsonb('section_scores')
+            .notNull()
+            .$default(() => []),
+        signals: jsonb('signals')
+            .notNull()
+            .$default(() => []),
+        findings: jsonb('findings')
+            .notNull()
+            .$default(() => []),
+        tags: jsonb('tags')
+            .notNull()
+            .$default(() => []),
         triggerSource: varchar('trigger_source', { length: 30 }).notNull(),
         calculatedAt: timestamp('calculated_at').defaultNow().notNull(),
     },
@@ -270,6 +280,32 @@ export const recommendationContent = pgTable(
     },
     (table) => [index('rec_content_kind_idx').on(table.kind)]
 )
+
+// ── Лиды на индивидуальную консультацию ─────────────────────────────────────────
+// Лид всегда сохраняется в БД (виден в админке); письмо-уведомление — best-effort
+// на адрес из app_settings.
+
+export const leads = pgTable(
+    'leads',
+    {
+        id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id),
+        message: text('message'),
+        processedAt: timestamp('processed_at'),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+    },
+    (table) => [index('leads_created_at_idx').on(table.createdAt)]
+)
+
+// Key-value настройки, редактируемые из админки без деплоя.
+// Ключи: 'lead_notification_email'.
+export const appSettings = pgTable('app_settings', {
+    key: varchar('key', { length: 100 }).primaryKey(),
+    value: text('value').notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
 export type MarkerSection = typeof markerSections.$inferSelect
 export type MarkerCatalog = typeof markerCatalog.$inferSelect

@@ -55,6 +55,18 @@ type Signal = {
   severity: 'info' | 'warning' | 'critical'
   sources: string[]
 }
+type LeadItem = {
+  id: number
+  message: string | null
+  processedAt: string | null
+  createdAt: string
+  userId: string
+  firstName: string
+  lastName: string
+  email: string | null
+  phone: string | null
+}
+
 type UserDetail = {
   user: {
     id: string
@@ -155,6 +167,7 @@ export default function AdminPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [tab, setTab] = useState<'anketa' | 'analyses' | 'recs'>('anketa')
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [view, setView] = useState<'users' | 'leads'>('users')
 
   // Admin gate — server checks email allowlist; non-admins bounce to dashboard.
   useEffect(() => {
@@ -289,14 +302,38 @@ export default function AdminPage() {
               Консоль нутрициолога
             </span>
           </div>
-          <h1
-            className="font-display mb-8 text-white"
-            style={{ fontWeight: 500, fontSize: 'clamp(2.2rem,5vw,3.4rem)', lineHeight: 1.02 }}
-          >
-            Пользователи
-          </h1>
+          <div className="mb-8 flex flex-wrap items-baseline gap-x-6 gap-y-2">
+            {(
+              [
+                ['users', 'Пользователи'],
+                ['leads', 'Лиды'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className="font-display bg-transparent p-0 text-left"
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: view === key ? 'clamp(2.2rem,5vw,3.4rem)' : 'clamp(1.3rem,3vw,1.8rem)',
+                  lineHeight: 1.02,
+                  color: view === key ? '#fff' : 'var(--ink-muted)',
+                  transition: 'color .15s ease',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[320px_1fr]">
+          {view === 'leads' && <LeadsSection />}
+
+          <div
+            className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[320px_1fr]"
+            style={view === 'leads' ? { display: 'none' } : undefined}
+          >
             {/* left: search + list */}
             <div className="flex flex-col gap-3">
               <div className="relative">
@@ -837,6 +874,180 @@ function TabRecs({ signals }: { signals: Signal[] }) {
           </article>
         )
       })}
+    </div>
+  )
+}
+
+// ─── leads section ─────────────────────────────────────────────────────────────
+
+function LeadsSection() {
+  const [leads, setLeads] = useState<LeadItem[] | null>(null)
+  const [notifyEmail, setNotifyEmail] = useState('')
+  const [savedEmail, setSavedEmail] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    apiRequest<{ leads: LeadItem[] }>('/api/v1/admin/leads')
+      .then((r) => setLeads(r.leads))
+      .catch(() => setLeads([]))
+    apiRequest<{ email: string | null }>('/api/v1/admin/settings/lead-email')
+      .then((r) => {
+        setSavedEmail(r.email)
+        setNotifyEmail(r.email ?? '')
+      })
+      .catch(() => {})
+  }, [])
+
+  async function saveEmail() {
+    if (saving || !notifyEmail.trim()) return
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const r = await apiRequest<{ email: string }>('/api/v1/admin/settings/lead-email', {
+        method: 'PUT',
+        body: JSON.stringify({ email: notifyEmail.trim() }),
+      })
+      setSavedEmail(r.email)
+      setSaveMsg('Сохранено')
+      setTimeout(() => setSaveMsg(null), 2500)
+    } catch {
+      setSaveMsg('Не удалось сохранить')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function toggleProcessed(lead: LeadItem) {
+    const processed = !lead.processedAt
+    // оптимистичное обновление; откат при ошибке
+    setLeads((prev) => prev?.map((l) => (l.id === lead.id ? { ...l, processedAt: processed ? new Date().toISOString() : null } : l)) ?? null)
+    try {
+      await apiRequest(`/api/v1/admin/leads/${lead.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ processed }),
+      })
+    } catch {
+      setLeads((prev) => prev?.map((l) => (l.id === lead.id ? { ...l, processedAt: lead.processedAt } : l)) ?? null)
+    }
+  }
+
+  const fresh = leads?.filter((l) => !l.processedAt).length ?? 0
+
+  return (
+    <div className="flex max-w-[46rem] flex-col gap-6">
+      {/* настройка email уведомлений */}
+      <div className="rounded-[18px] p-5" style={{ border: '1px solid var(--line)', background: 'rgba(255,255,255,0.03)' }}>
+        <p className="font-sans mb-1 text-sm text-white" style={{ fontWeight: 500 }}>
+          Email для уведомлений о заявках
+        </p>
+        <p className="font-sans mb-3 text-xs" style={{ color: 'var(--ink-muted)' }}>
+          Каждая новая заявка дублируется письмом на этот адрес. Заявки сохраняются здесь в любом случае.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="glass-input min-w-[240px] flex-1 px-3 py-2.5 text-sm"
+            type="email"
+            placeholder="nutriciolog@example.ru"
+            value={notifyEmail}
+            onChange={(e) => setNotifyEmail(e.target.value)}
+          />
+          <button
+            onClick={saveEmail}
+            disabled={saving || !notifyEmail.trim() || notifyEmail.trim() === savedEmail}
+            className="font-sans rounded-xl px-4 py-2.5 text-sm"
+            style={{
+              border: 'none',
+              cursor: 'pointer',
+              background: 'var(--gold)',
+              color: 'var(--forest)',
+              fontWeight: 600,
+              opacity: saving || !notifyEmail.trim() || notifyEmail.trim() === savedEmail ? 0.45 : 1,
+            }}
+          >
+            {saving ? 'Сохраняем…' : 'Сохранить'}
+          </button>
+          {saveMsg && (
+            <span className="font-sans text-xs" style={{ color: saveMsg === 'Сохранено' ? 'var(--gold)' : '#ff9a8a' }}>
+              {saveMsg}
+            </span>
+          )}
+        </div>
+        {!savedEmail && (
+          <p className="font-sans mt-2 text-xs" style={{ color: '#ffc850' }}>
+            Адрес не задан — уведомления на почту не отправляются.
+          </p>
+        )}
+      </div>
+
+      {/* список лидов */}
+      {leads === null ? (
+        <p className="font-sans text-sm" style={{ color: 'var(--ink-muted)' }}>
+          Загружаем заявки…
+        </p>
+      ) : leads.length === 0 ? (
+        <div
+          className="grid min-h-[180px] place-items-center rounded-[18px] font-sans text-sm"
+          style={{ color: 'var(--ink-muted)', border: '1px dashed var(--line)' }}
+        >
+          Заявок пока нет
+        </div>
+      ) : (
+        <>
+          <p className="font-sans text-xs" style={{ color: 'var(--ink-muted)' }}>
+            {leads.length} {plural(leads.length, ['заявка', 'заявки', 'заявок'])}
+            {fresh > 0 ? ` · ${fresh} не обработано` : ''}
+          </p>
+          <ul className="flex flex-col gap-3">
+            {leads.map((l) => {
+              const done = !!l.processedAt
+              return (
+                <li
+                  key={l.id}
+                  className="rounded-[16px] p-4"
+                  style={{
+                    border: `1px solid ${done ? 'var(--line)' : 'rgba(255,230,146,0.35)'}`,
+                    background: done ? 'rgba(255,255,255,0.02)' : 'rgba(255,230,146,0.05)',
+                    opacity: done ? 0.65 : 1,
+                  }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-sans text-sm text-white" style={{ fontWeight: 500 }}>
+                        {l.lastName} {l.firstName}
+                      </p>
+                      <p className="font-sans mt-0.5 text-xs" style={{ color: 'var(--ink-muted)' }}>
+                        {[l.phone, l.email].filter(Boolean).join(' · ') || 'контакты не указаны'}
+                      </p>
+                      <p className="font-sans mt-0.5 text-xs" style={{ color: 'var(--ink-muted)' }}>
+                        {formatDate(l.createdAt)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => toggleProcessed(l)}
+                      className="font-sans flex-shrink-0 rounded-lg px-3 py-2 text-xs"
+                      style={{
+                        cursor: 'pointer',
+                        border: done ? '1px solid var(--line)' : '1px solid rgba(255,230,146,0.4)',
+                        background: done ? 'transparent' : 'rgba(255,230,146,0.12)',
+                        color: done ? 'var(--ink-muted)' : 'var(--gold)',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {done ? 'Вернуть в работу' : 'Обработан ✓'}
+                    </button>
+                  </div>
+                  {l.message && (
+                    <p className="font-sans mt-3 text-sm leading-relaxed" style={{ color: 'var(--ink-80)', whiteSpace: 'pre-wrap' }}>
+                      {l.message}
+                    </p>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </div>
   )
 }

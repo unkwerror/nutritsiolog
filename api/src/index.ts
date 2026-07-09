@@ -14,6 +14,7 @@ import analysisRoutes from './modules/analysis/routes.js'
 import questionnaireRoutes from './modules/questionnaire/routes.js'
 import profileRoutes from './modules/profile/routes.js'
 import adminRoutes from './modules/admin/routes.js'
+import leadRoutes from './modules/lead/routes.js'
 import healthRoutes from './modules/health/routes.js'
 import devtoolsRoutes from './modules/devtools/upload.js'
 import { MinioStorage } from './modules/analysis/infrastructure/storage.js'
@@ -60,6 +61,7 @@ app.register(analysisRoutes, { prefix: '/api/v1' })
 app.register(questionnaireRoutes, { prefix: '/api/v1' })
 app.register(profileRoutes, { prefix: '/api/v1' })
 app.register(adminRoutes, { prefix: '/api/v1' })
+app.register(leadRoutes, { prefix: '/api/v1' })
 if (config.NODE_ENV !== 'production') app.register(devtoolsRoutes)
 
 // PM2 по умолчанию шлёт SIGINT — без него graceful shutdown не срабатывал

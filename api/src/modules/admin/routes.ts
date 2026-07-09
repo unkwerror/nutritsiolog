@@ -9,6 +9,7 @@ import { AdminRepository } from './repository.js'
 import { AdminService } from './service.js'
 import { MinioStorage } from '../analysis/infrastructure/storage.js'
 import { BullMQQueue } from '../analysis/infrastructure/queue.js'
+import { LeadRepository, SETTING_LEAD_EMAIL } from '../lead/repository.js'
 import { requireAdmin } from './guard.js'
 import { NotFoundError } from '../../core/errors.js'
 import { SearchUsersQuery, SearchUsersResponse, UserDetailResponse } from './schemas.js'
@@ -165,6 +166,93 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 ocrProvider: a.ocrProvider ?? undefined,
             })
             return reply.send({ analysisId: request.params.id, status: 'pending' })
+        }
+    )
+
+    // ── Лиды на консультацию ────────────────────────────────────────────────────
+
+    const LeadItem = z.object({
+        id: z.number(),
+        message: z.string().nullable(),
+        processedAt: z.date().nullable(),
+        createdAt: z.date(),
+        userId: z.string(),
+        firstName: z.string(),
+        lastName: z.string(),
+        email: z.string().nullable(),
+        phone: z.string().nullable(),
+    })
+
+    fastify.get(
+        '/admin/leads',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                response: { 200: z.object({ leads: z.array(LeadItem) }) },
+            },
+        },
+        async (request, reply) => {
+            const repo = new LeadRepository(request.server.db)
+            return reply.send({ leads: await repo.findAllWithUser() })
+        }
+    )
+
+    fastify.patch(
+        '/admin/leads/:id',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                params: z.object({ id: z.coerce.number().int().positive() }),
+                body: z.object({ processed: z.boolean() }),
+                response: {
+                    200: z.object({ id: z.number(), processedAt: z.date().nullable() }),
+                },
+            },
+        },
+        async (request, reply) => {
+            const repo = new LeadRepository(request.server.db)
+            const row = await repo.setProcessed(request.params.id, request.body.processed)
+            if (!row) throw new NotFoundError('LEAD_NOT_FOUND', 'Лид не найден')
+            return reply.send({ id: row.id, processedAt: row.processedAt })
+        }
+    )
+
+    // Email для уведомлений о лидах — настраивается из админки без деплоя
+    fastify.get(
+        '/admin/settings/lead-email',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                response: { 200: z.object({ email: z.string().nullable() }) },
+            },
+        },
+        async (request, reply) => {
+            const repo = new LeadRepository(request.server.db)
+            return reply.send({ email: await repo.getSetting(SETTING_LEAD_EMAIL) })
+        }
+    )
+
+    fastify.put(
+        '/admin/settings/lead-email',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                body: z.object({ email: z.email() }),
+                response: { 200: z.object({ email: z.string() }) },
+            },
+        },
+        async (request, reply) => {
+            const repo = new LeadRepository(request.server.db)
+            await repo.setSetting(SETTING_LEAD_EMAIL, request.body.email)
+            return reply.send({ email: request.body.email })
         }
     )
 }
