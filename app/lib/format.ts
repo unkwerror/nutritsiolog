@@ -71,3 +71,27 @@ export function analysisName(a: {
   if (a.labName && a.labName.trim()) return a.labName.trim()
   return `Анализ #${a.id}`
 }
+
+/**
+ * Прогрессивная маска РФ-телефона для инпута: «9161234567» → «+7 (916) 123-45-67».
+ * Ведущие 7/8 отбрасываются, максимум 10 значащих цифр. Бэкенд нормализует сам —
+ * маска только для удобства ввода.
+ */
+export function formatPhoneInput(raw: string): string {
+  let d = raw.replace(/\D/g, '')
+  if (d.startsWith('7') || d.startsWith('8')) d = d.slice(1)
+  d = d.slice(0, 10)
+  if (d.length === 0) return ''
+  let out = `+7 (${d.slice(0, 3)}`
+  if (d.length >= 4) out += `) ${d.slice(3, 6)}`
+  if (d.length >= 7) out += `-${d.slice(6, 8)}`
+  if (d.length >= 9) out += `-${d.slice(8, 10)}`
+  return out
+}
+
+/** 10 значащих цифр РФ-номера введены полностью */
+export function isPhoneComplete(masked: string): boolean {
+  let d = masked.replace(/\D/g, '')
+  if (d.startsWith('7') || d.startsWith('8')) d = d.slice(1)
+  return d.length === 10
+}

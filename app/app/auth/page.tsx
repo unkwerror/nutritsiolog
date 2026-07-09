@@ -7,23 +7,30 @@ import { apiRequest, setAccessToken, ApiRequestError } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { AppBackground } from '@/components/ds/AppCommon'
 import { GlassCard, Button, Input, Field, ProgressSteps } from '@/components/ds/primitives'
+import { formatPhoneInput, isPhoneComplete } from '@/lib/format'
 
 type ApiResp<T> = T & { error?: { message?: string; code?: string } }
-type Me = { id: string; email: string; firstName: string | null; lastName: string | null }
-type Step = 'email' | 'otp' | 'register'
-const STEP_INDEX: Record<Step, number> = { email: 0, otp: 1, register: 2 }
+type Me = { id: string; email: string | null; firstName: string | null; lastName: string | null }
+type Step = 'contact' | 'otp' | 'register'
+type Channel = 'phone' | 'email'
+const STEP_INDEX: Record<Step, number> = { contact: 0, otp: 1, register: 2 }
 const BRAND = '/assets/brand/'
 
 export default function AuthPage() {
   const router = useRouter()
   const { user, isLoading: authLoading, setUserAfterLogin } = useAuth()
-  const [step, setStep] = useState<Step>('email')
+  const [step, setStep] = useState<Step>('contact')
+  // Телефон — основной канал; email оставлен для существующих аккаунтов
+  const [channel, setChannel] = useState<Channel>('phone')
   const [isNewUser, setIsNewUser] = useState(false)
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [phone, setPhone] = useState('')
+  // Второй контакт на шаге регистрации (телефон при email-канале и наоборот)
+  const [regEmail, setRegEmail] = useState('')
+  const [regPhone, setRegPhone] = useState('')
   const [consentPd, setConsentPd] = useState(false)
   const [consentMedical, setConsentMedical] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -35,6 +42,15 @@ export default function AuthPage() {
     if (!authLoading && user) router.replace('/dashboard')
   }, [authLoading, user, router])
 
+  // Идентификатор текущего канала для тела запроса
+  function identity(): { channel: Channel; email?: string; phone?: string } {
+    return channel === 'phone'
+      ? { channel, phone: phone.trim() }
+      : { channel, email: email.trim().toLowerCase() }
+  }
+
+  const contactLabel = channel === 'phone' ? phone : email
+
   // После входа кладём юзера в AuthProvider — иначе до полной перезагрузки
   // страницы шапка показывает «Профиль» вместо имени
   async function completeLogin(token: string) {
@@ -44,6 +60,11 @@ export default function AuthPage() {
     router.push('/dashboard')
   }
 
+  function switchChannel(next: Channel) {
+    setChannel(next)
+    setError(null)
+  }
+
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault()
     setIsLoading(true)
@@ -51,7 +72,7 @@ export default function AuthPage() {
     try {
       const data = await apiRequest<ApiResp<{ isNewUser: boolean }>>('/api/v1/auth/request-otp', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify(identity()),
       })
       setIsNewUser(data.isNewUser)
       setStep('otp')
@@ -72,7 +93,7 @@ export default function AuthPage() {
       // в коде обнаруживалась только после заполнения всей анкеты регистрации.
       const data = await apiRequest<ApiResp<{ accessToken: string }>>('/api/v1/auth/verify-otp', {
         method: 'POST',
-        body: JSON.stringify({ email, code: code.trim() }),
+        body: JSON.stringify({ ...identity(), code: code.trim() }),
       })
       await completeLogin(data.accessToken)
     } catch (err) {
@@ -91,14 +112,20 @@ export default function AuthPage() {
     setIsLoading(true)
     setError(null)
     try {
+      const secondary =
+        channel === 'phone'
+          ? regEmail.trim()
+            ? { email: regEmail.trim().toLowerCase() }
+            : {}
+          : { phone: regPhone.trim() }
       const data = await apiRequest<ApiResp<{ accessToken: string }>>('/api/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({
-          email,
+          ...identity(),
+          ...secondary,
           code: code.trim(),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          phone: phone.trim(),
           consentPd,
           consentMedicalData: consentMedical,
         }),
@@ -110,6 +137,15 @@ export default function AuthPage() {
       setIsLoading(false)
     }
   }
+
+  const contactValid = channel === 'phone' ? isPhoneComplete(phone) : email.includes('@')
+  const registerValid =
+    !isLoading &&
+    firstName.trim() !== '' &&
+    lastName.trim() !== '' &&
+    consentPd &&
+    consentMedical &&
+    (channel === 'phone' || isPhoneComplete(regPhone))
 
   return (
     <main style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1.25rem' }}>
@@ -125,17 +161,37 @@ export default function AuthPage() {
         <GlassCard variant="modal" style={{ padding: 'clamp(1.75rem, 5vw, 3rem)', borderRadius: 24 }}>
           <ProgressSteps total={3} current={STEP_INDEX[step]} style={{ marginBottom: 34 }} />
 
-          <div key={step} className="step-fade">
-            {step === 'email' && (
+          <div key={`${step}-${channel}`} className="step-fade">
+            {step === 'contact' && (
               <form onSubmit={(e) => void handleRequestOtp(e)} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-                <Head title="Войти или создать профиль" sub="Введите email — пришлём одноразовый код" />
-                <Field label="Email">
-                  <Input type="email" autoComplete="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </Field>
+                <Head
+                  title="Войти или создать профиль"
+                  sub={channel === 'phone' ? 'Введите номер телефона — пришлём код в SMS' : 'Введите email — пришлём одноразовый код'}
+                />
+                {channel === 'phone' ? (
+                  <Field label="Телефон">
+                    <Input
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      required
+                      placeholder="+7 (900) 000-00-00"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+                    />
+                  </Field>
+                ) : (
+                  <Field label="Email">
+                    <Input type="email" autoComplete="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </Field>
+                )}
                 {error && <ErrorMsg>{error}</ErrorMsg>}
-                <Button type="submit" variant="gold" disabled={isLoading || !email.includes('@')} style={{ width: '100%' }}>
+                <Button type="submit" variant="gold" disabled={isLoading || !contactValid} style={{ width: '100%' }}>
                   {isLoading ? 'Отправляем…' : 'Получить код'}
                 </Button>
+                <button type="button" onClick={() => switchChannel(channel === 'phone' ? 'email' : 'phone')} className="link-btn">
+                  {channel === 'phone' ? 'Войти по email' : '← Войти по номеру телефона'}
+                </button>
                 <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: 0 }}>Аккаунт создаётся автоматически при первом входе</p>
               </form>
             )}
@@ -146,11 +202,11 @@ export default function AuthPage() {
                   title={isNewUser ? 'Подтверждение' : 'Введите код'}
                   sub={
                     <>
-                      Код отправлен на <span style={{ color: '#fff' }}>{email}</span>
+                      Код отправлен на <span style={{ color: '#fff' }}>{contactLabel}</span>
                     </>
                   }
                 />
-                <Field label="Код из письма">
+                <Field label={channel === 'phone' ? 'Код из SMS' : 'Код из письма'}>
                   <Input
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -165,15 +221,15 @@ export default function AuthPage() {
                 <Button type="submit" variant="gold" disabled={isLoading || code.length < 4} style={{ width: '100%' }}>
                   {isLoading ? 'Проверяем…' : isNewUser ? 'Продолжить' : 'Войти'}
                 </Button>
-                <button type="button" onClick={() => { setStep('email'); setError(null) }} className="link-btn">
-                  ← Изменить email
+                <button type="button" onClick={() => { setStep('contact'); setError(null) }} className="link-btn">
+                  {channel === 'phone' ? '← Изменить номер' : '← Изменить email'}
                 </button>
               </form>
             )}
 
             {step === 'register' && (
               <form onSubmit={(e) => void handleRegister(e)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                <Head title="Знакомство" sub={email} />
+                <Head title="Знакомство" sub={contactLabel} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Field label="Имя *">
                     <Input autoComplete="given-name" required placeholder="Иван" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -182,9 +238,23 @@ export default function AuthPage() {
                     <Input autoComplete="family-name" required placeholder="Иванов" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                   </Field>
                 </div>
-                <Field label="Телефон *">
-                  <Input type="tel" autoComplete="tel" required placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                </Field>
+                {channel === 'phone' ? (
+                  <Field label="Email" hint="Необязательно — для связи и уведомлений">
+                    <Input type="email" autoComplete="email" placeholder="you@example.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
+                  </Field>
+                ) : (
+                  <Field label="Телефон *">
+                    <Input
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      required
+                      placeholder="+7 (900) 000-00-00"
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(formatPhoneInput(e.target.value))}
+                    />
+                  </Field>
+                )}
                 <Consent checked={consentPd} onChange={setConsentPd}>
                   Согласие на обработку персональных данных <i style={{ color: '#ff9a9a', fontStyle: 'normal' }}>*</i>
                 </Consent>
@@ -192,7 +262,7 @@ export default function AuthPage() {
                   Согласие на обработку медицинских данных <i style={{ color: '#ff9a9a', fontStyle: 'normal' }}>*</i>
                 </Consent>
                 {error && <ErrorMsg>{error}</ErrorMsg>}
-                <Button type="submit" variant="gold" disabled={isLoading || !firstName.trim() || !lastName.trim() || !phone.trim() || !consentPd || !consentMedical} style={{ width: '100%' }}>
+                <Button type="submit" variant="gold" disabled={!registerValid} style={{ width: '100%' }}>
                   {isLoading ? 'Создаём профиль…' : 'Создать профиль'}
                 </Button>
                 <button type="button" onClick={() => { setStep('otp'); setError(null) }} className="link-btn">

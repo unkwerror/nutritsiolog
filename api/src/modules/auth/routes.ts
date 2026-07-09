@@ -6,6 +6,7 @@ import { config } from '../../core/config.js'
 import { UnauthorizedError, ConflictError, PG_UNIQUE_VIOLATION } from '../../core/errors.js'
 import { UsersRepository } from './repository.js'
 import { AuthService } from './service.js'
+import { createSmsService } from '../../core/sms/index.js'
 import {
     RequestOtpSchema,
     VerifyOtpSchema,
@@ -56,6 +57,9 @@ function buildTokens(
     )
     return { accessToken, refreshToken, jti }
 }
+
+// Composition root: SMS-адаптер создаётся один раз (как storage/queue в analysis)
+const sms = createSmsService()
 
 const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.get(
@@ -118,7 +122,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const service = new AuthService(new UsersRepository(request.server.db))
+            const service = new AuthService(new UsersRepository(request.server.db), sms)
             const { isNewUser } = await service.requestOtp(request.body)
             return reply.code(200).send({ isNewUser })
         }
@@ -134,7 +138,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const service = new AuthService(new UsersRepository(request.server.db))
+            const service = new AuthService(new UsersRepository(request.server.db), sms)
             const user = await service.verifyOtp(request.body)
 
             const { accessToken, refreshToken, jti } = buildTokens(fastify, user)
@@ -162,7 +166,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
             },
         },
         async (request, reply) => {
-            const service = new AuthService(new UsersRepository(request.server.db))
+            const service = new AuthService(new UsersRepository(request.server.db), sms)
             const user = await service.register(request.body)
 
             const { accessToken, refreshToken, jti } = buildTokens(fastify, user)

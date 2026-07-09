@@ -71,6 +71,20 @@
       "when": 1783500000000,
       "tag": "0009_add_marker_value_text",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783600000000,
+      "tag": "0010_leads_and_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783700000000,
+      "tag": "0011_normalize_phones",
+      "breakpoints": true
     }
   ]
 }

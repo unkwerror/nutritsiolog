@@ -1,34 +1,39 @@
 import { z } from 'zod'
+import { PhoneRuSchema } from './phone.js'
 
-export const RequestOtpSchema = z.object({
-    email: z.email(),
-})
+// Канал идентификации: телефон — основной (SMS-код), email остаётся вторым
+// способом входа (существующие аккаунты). Discriminated union по `channel` —
+// чистый oneOf в OpenAPI и exhaustive switch в сервисе.
 
-export const VerifyOtpSchema = z.object({
-    email: z.email(),
-    code: z
-        .string()
-        .length(6)
-        .regex(/^\d{6}$/),
-})
+const CodeSchema = z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/)
 
-export const RegisterSchema = z.object({
-    email: z.email(),
-    code: z
-        .string()
-        .length(6)
-        .regex(/^\d{6}$/),
+const EmailChannel = z.object({ channel: z.literal('email'), email: z.email() })
+const PhoneChannel = z.object({ channel: z.literal('phone'), phone: PhoneRuSchema })
+
+export const RequestOtpSchema = z.discriminatedUnion('channel', [EmailChannel, PhoneChannel])
+
+export const VerifyOtpSchema = z.discriminatedUnion('channel', [
+    EmailChannel.extend({ code: CodeSchema }),
+    PhoneChannel.extend({ code: CodeSchema }),
+])
+
+const RegisterCommon = {
+    code: CodeSchema,
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().min(1).max(100),
-    phone: z
-        .string()
-        .trim()
-        .min(6)
-        .max(25)
-        .regex(/^[+\d][\d\s\-()]+$/, 'Некорректный телефон'),
     consentPd: z.literal(true),
     consentMedicalData: z.literal(true),
-})
+}
+
+export const RegisterSchema = z.discriminatedUnion('channel', [
+    // Старый флоу: код подтверждает email, телефон обязателен (не верифицирован)
+    EmailChannel.extend({ ...RegisterCommon, phone: PhoneRuSchema }),
+    // Новый флоу: код подтверждает телефон, email — опциональный контакт
+    PhoneChannel.extend({ ...RegisterCommon, email: z.email().optional() }),
+])
 
 // Профиль редактируется частично — все поля опциональны.
 // email не редактируется здесь: это логин-идентификатор (см. решение 009).

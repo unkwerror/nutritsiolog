@@ -12,7 +12,8 @@ import { apiRequest, setAccessToken, clearAccessToken } from './api'
 
 type User = {
   id: string
-  email: string
+  // null у пользователей, зарегистрированных по телефону без email
+  email: string | null
   firstName: string | null
   lastName: string | null
 }
