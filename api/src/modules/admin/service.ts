@@ -77,14 +77,24 @@ export class AdminService {
         }
     }
 
+    /** Динамика пользователя для админки — тот же расчёт, что видит сам пользователь. */
+    async getUserDynamics(userId: string) {
+        const user = await this.usersRepo.findByIdPublic(userId)
+        if (!user) throw new NotFoundError('USER_NOT_FOUND', 'User not found')
+        return this.profileService.getDynamics(userId)
+    }
+
     async getProfilePdf(userId: string): Promise<{ buffer: Buffer; fileName: string }> {
         const detail = await this.getUserDetail(userId)
-        const qRow = await this.questionnaireRepo.findLatestByUser(userId)
+        const [qRow, dynamics] = await Promise.all([
+            this.questionnaireRepo.findLatestByUser(userId),
+            this.profileService.getDynamics(userId),
+        ])
         const answers =
             qRow && typeof qRow.answers === 'object' && qRow.answers !== null
                 ? (qRow.answers as Record<string, unknown>)
                 : null
-        const buffer = await buildProfilePdf(detail, answers)
+        const buffer = await buildProfilePdf(detail, answers, dynamics)
         const slug = [detail.user.lastName, detail.user.firstName]
             .filter(Boolean)
             .join('_')

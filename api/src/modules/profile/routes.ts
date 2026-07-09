@@ -71,6 +71,69 @@ const ProgramBlockSchema = z.object({
     relevant: z.boolean(),
 })
 
+const MarkerSeriesSchema = z.object({
+    key: z.string(),
+    display: z.string(),
+    section: z.string(),
+    unit: z.string().nullable(),
+    optimumMin: z.number().nullable(),
+    optimumMax: z.number().nullable(),
+    points: z.array(
+        z.object({
+            analysisId: z.number(),
+            date: z.string(),
+            value: z.number(),
+        })
+    ),
+})
+
+// Экспортируется: тот же контракт отдаёт админка (GET /admin/users/:id/dynamics)
+export const DynamicsResponseSchema = z.object({
+    summary: z
+        .object({
+            improved: z.number(),
+            worsened: z.number(),
+            stable: z.number(),
+            currentDate: z.string(),
+            previousDate: z.string(),
+        })
+        .nullable(),
+    series: z.array(MarkerSeriesSchema),
+    questionnaire: z
+        .object({
+            filledCount: z.number(),
+            lastFilledAt: z.string(),
+            body: z.array(
+                z.object({
+                    key: z.enum(['weight', 'waist', 'bmi']),
+                    display: z.string(),
+                    unit: z.string(),
+                    optimumMin: z.number().nullable(),
+                    optimumMax: z.number().nullable(),
+                    points: z.array(z.object({ date: z.string(), value: z.number() })),
+                })
+            ),
+            changes: z.array(
+                z.object({
+                    key: z.string(),
+                    label: z.string(),
+                    prevLabel: z.string(),
+                    currLabel: z.string(),
+                    trend: z.enum(['improved', 'worsened', 'stable']),
+                })
+            ),
+            symptoms: z
+                .object({
+                    prevCount: z.number(),
+                    currCount: z.number(),
+                    gone: z.array(z.string()),
+                    appeared: z.array(z.string()),
+                })
+                .nullable(),
+        })
+        .nullable(),
+})
+
 const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
     fastify.get(
         '/profile/recommendations',
@@ -196,22 +259,6 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
         }
     )
 
-    const MarkerSeriesSchema = z.object({
-        key: z.string(),
-        display: z.string(),
-        section: z.string(),
-        unit: z.string().nullable(),
-        optimumMin: z.number().nullable(),
-        optimumMax: z.number().nullable(),
-        points: z.array(
-            z.object({
-                analysisId: z.number(),
-                date: z.string(),
-                value: z.number(),
-            })
-        ),
-    })
-
     // Динамика маркеров: серии значений по анализам + сводка «с прошлого раза».
     // summary = null, пока ни у одного маркера нет двух замеров.
     fastify.get(
@@ -220,55 +267,7 @@ const profileRoutes: FastifyPluginAsyncZod = async (fastify) => {
             schema: {
                 tags: ['Profile'],
                 security: [{ bearerAuth: [] }],
-                response: {
-                    200: z.object({
-                        summary: z
-                            .object({
-                                improved: z.number(),
-                                worsened: z.number(),
-                                stable: z.number(),
-                                currentDate: z.string(),
-                                previousDate: z.string(),
-                            })
-                            .nullable(),
-                        series: z.array(MarkerSeriesSchema),
-                        questionnaire: z
-                            .object({
-                                filledCount: z.number(),
-                                lastFilledAt: z.string(),
-                                body: z.array(
-                                    z.object({
-                                        key: z.enum(['weight', 'waist', 'bmi']),
-                                        display: z.string(),
-                                        unit: z.string(),
-                                        optimumMin: z.number().nullable(),
-                                        optimumMax: z.number().nullable(),
-                                        points: z.array(
-                                            z.object({ date: z.string(), value: z.number() })
-                                        ),
-                                    })
-                                ),
-                                changes: z.array(
-                                    z.object({
-                                        key: z.string(),
-                                        label: z.string(),
-                                        prevLabel: z.string(),
-                                        currLabel: z.string(),
-                                        trend: z.enum(['improved', 'worsened', 'stable']),
-                                    })
-                                ),
-                                symptoms: z
-                                    .object({
-                                        prevCount: z.number(),
-                                        currCount: z.number(),
-                                        gone: z.array(z.string()),
-                                        appeared: z.array(z.string()),
-                                    })
-                                    .nullable(),
-                            })
-                            .nullable(),
-                    }),
-                },
+                response: { 200: DynamicsResponseSchema },
             },
             preHandler: [fastify.authenticate],
         },

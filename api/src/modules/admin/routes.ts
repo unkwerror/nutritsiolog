@@ -10,6 +10,7 @@ import { AdminService } from './service.js'
 import { MinioStorage } from '../analysis/infrastructure/storage.js'
 import { BullMQQueue } from '../analysis/infrastructure/queue.js'
 import { LeadRepository, SETTING_LEAD_EMAIL } from '../lead/repository.js'
+import { DynamicsResponseSchema } from '../profile/routes.js'
 import { requireAdmin } from './guard.js'
 import { NotFoundError } from '../../core/errors.js'
 import { SearchUsersQuery, SearchUsersResponse, UserDetailResponse } from './schemas.js'
@@ -166,6 +167,24 @@ const adminRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 ocrProvider: a.ocrProvider ?? undefined,
             })
             return reply.send({ analysisId: request.params.id, status: 'pending' })
+        }
+    )
+
+    // Динамика пользователя — тот же расчёт и контракт, что GET /profile/dynamics
+    fastify.get(
+        '/admin/users/:id/dynamics',
+        {
+            ...gate,
+            schema: {
+                tags: ['Admin'],
+                security: [{ bearerAuth: [] }],
+                params: IdParams,
+                response: { 200: DynamicsResponseSchema },
+            },
+        },
+        async (request, reply) => {
+            const svc = buildAdminService(request.server.db)
+            return reply.send(await svc.getUserDynamics(request.params.id))
         }
     )
 

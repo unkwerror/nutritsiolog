@@ -6,6 +6,7 @@ import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { apiRequest, apiFetch } from '@/lib/api'
 import { Motes, ProgressRing } from '@/components/ds/AppCommon'
 import { formatDate, plural, analysisTypeLabel } from '@/lib/format'
+import MarkerChart from '@/components/charts/MarkerChart'
 
 // ─── API types (mirror api/src/modules/admin/schemas.ts) ─────────────────────
 
@@ -165,7 +166,7 @@ export default function AdminPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<UserDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [tab, setTab] = useState<'anketa' | 'analyses' | 'recs'>('anketa')
+  const [tab, setTab] = useState<'anketa' | 'analyses' | 'recs' | 'dynamics'>('anketa')
   const [pdfBusy, setPdfBusy] = useState(false)
   const [view, setView] = useState<'users' | 'leads'>('users')
 
@@ -447,8 +448,8 @@ function AdminDetail({
   pdfBusy,
 }: {
   detail: UserDetail
-  tab: 'anketa' | 'analyses' | 'recs'
-  setTab: (t: 'anketa' | 'analyses' | 'recs') => void
+  tab: 'anketa' | 'analyses' | 'recs' | 'dynamics'
+  setTab: (t: 'anketa' | 'analyses' | 'recs' | 'dynamics') => void
   onPdf: () => void
   pdfBusy: boolean
 }) {
@@ -466,6 +467,7 @@ function AdminDetail({
     ['anketa', 'Анкета'],
     ['analyses', 'Анализы'],
     ['recs', 'Рекомендации'],
+    ['dynamics', 'Динамика'],
   ]
 
   return (
@@ -565,6 +567,7 @@ function AdminDetail({
             {tab === 'anketa' && <TabAnketa detail={detail} />}
             {tab === 'analyses' && <TabAnalyses analyses={detail.analyses} />}
             {tab === 'recs' && <TabRecs signals={detail.recommendations.signals} />}
+            {tab === 'dynamics' && <TabDynamics userId={user.id} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -1047,6 +1050,183 @@ function LeadsSection() {
             })}
           </ul>
         </>
+      )}
+    </div>
+  )
+}
+
+// ─── dynamics tab ──────────────────────────────────────────────────────────────
+// Тот же контракт, что /profile/dynamics у пользователя — расчёт один и тот же.
+
+type DynSeries = {
+  key: string
+  display: string
+  unit: string | null
+  optimumMin: number | null
+  optimumMax: number | null
+  points: { date: string; value: number }[]
+}
+type DynData = {
+  summary: { improved: number; worsened: number; stable: number; previousDate: string } | null
+  series: DynSeries[]
+  questionnaire: {
+    filledCount: number
+    lastFilledAt: string
+    body: DynSeries[]
+    changes: { key: string; label: string; prevLabel: string; currLabel: string; trend: 'improved' | 'worsened' | 'stable' }[]
+    symptoms: { prevCount: number; currCount: number; gone: string[]; appeared: string[] } | null
+  } | null
+}
+
+const DYN_TREND: Record<'improved' | 'worsened' | 'stable', { color: string; sign: string }> = {
+  improved: { color: '#a8e0a0', sign: '↗' },
+  worsened: { color: '#ff9a8a', sign: '↘' },
+  stable: { color: 'rgba(255,255,255,0.5)', sign: '→' },
+}
+
+function dynTrend(s: DynSeries): 'improved' | 'worsened' | 'stable' {
+  const n = s.points.length
+  if (n < 2 || (s.optimumMin === null && s.optimumMax === null)) return 'stable'
+  const dist = (v: number) =>
+    s.optimumMin !== null && v < s.optimumMin ? s.optimumMin - v : s.optimumMax !== null && v > s.optimumMax ? v - s.optimumMax : 0
+  const dPrev = dist(s.points[n - 2]!.value)
+  const dCurr = dist(s.points[n - 1]!.value)
+  const w = s.optimumMin !== null && s.optimumMax !== null ? Math.abs(s.optimumMax - s.optimumMin) : Math.abs(s.optimumMin ?? s.optimumMax ?? 1) || 1
+  if (Math.abs(dPrev - dCurr) <= w * 0.02) return 'stable'
+  return dCurr < dPrev ? 'improved' : 'worsened'
+}
+
+function dynNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '')
+}
+
+function DynRow({ s }: { s: DynSeries }) {
+  const [open, setOpen] = useState(false)
+  const t = DYN_TREND[dynTrend(s)]
+  const last = s.points[s.points.length - 1]!
+  const prev = s.points[s.points.length - 2]
+  return (
+    <div className="rounded-xl" style={{ border: '1px solid var(--line)', background: 'rgba(255,255,255,0.02)' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-baseline justify-between gap-3 px-3.5 py-2.5 text-left"
+        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+      >
+        <span className="truncate font-sans text-sm text-white">{s.display}</span>
+        <span className="shrink-0 font-sans text-sm" style={{ color: t.color, fontVariantNumeric: 'tabular-nums' }}>
+          {prev && <span style={{ color: 'var(--ink-muted)' }}>{dynNum(prev.value)} → </span>}
+          {dynNum(last.value)}
+          {s.unit ? <span style={{ color: 'var(--ink-faint)', fontSize: 11 }}> {s.unit}</span> : null} {t.sign}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3.5 pb-3">
+          <MarkerChart points={s.points} optimumMin={s.optimumMin} optimumMax={s.optimumMax} height={80} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabDynamics({ userId }: { userId: string }) {
+  const [data, setData] = useState<DynData | null>(null)
+  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+
+  useEffect(() => {
+    setState('loading')
+    apiRequest<DynData>(`/api/v1/admin/users/${userId}/dynamics`)
+      .then((d) => {
+        setData(d)
+        setState('ok')
+      })
+      .catch(() => setState('error'))
+  }, [userId])
+
+  if (state === 'loading')
+    return <p className="font-sans text-sm" style={{ color: 'var(--ink-muted)' }}>Загружаем динамику…</p>
+  if (state === 'error' || !data)
+    return <p className="font-sans text-sm" style={{ color: '#ff9a8a' }}>Не удалось загрузить динамику</p>
+
+  const multi = data.series.filter((s) => s.points.length >= 2)
+  const worsened = multi.filter((s) => dynTrend(s) === 'worsened')
+  const improved = multi.filter((s) => dynTrend(s) === 'improved')
+  const stable = multi.filter((s) => dynTrend(s) === 'stable')
+  const q = data.questionnaire
+  const hasAny = multi.length > 0 || (q !== null && q.filledCount >= 2)
+
+  if (!hasAny)
+    return (
+      <p className="font-sans text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+        Динамики пока нет — нужен второй замер (повторные анализы или повторное заполнение анкеты).
+      </p>
+    )
+
+  return (
+    <div className="flex max-w-[36rem] flex-col gap-5">
+      {data.summary && (
+        <p className="font-sans text-[13px]" style={{ color: 'var(--ink-dim)' }}>
+          С замера от {formatDate(data.summary.previousDate)}:{' '}
+          {[
+            data.summary.improved > 0 ? `${data.summary.improved} улучшилось` : null,
+            data.summary.worsened > 0 ? `${data.summary.worsened} требует внимания` : null,
+            data.summary.stable > 0 ? `${data.summary.stable} без изменений` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      )}
+
+      {worsened.length > 0 && (
+        <div>
+          <p className="mb-2 font-sans text-[11px] uppercase tracking-[0.14em]" style={{ color: '#ff9a8a' }}>Требуют внимания</p>
+          <div className="flex flex-col gap-1.5">{worsened.map((s) => <DynRow key={s.key} s={s} />)}</div>
+        </div>
+      )}
+      {improved.length > 0 && (
+        <div>
+          <p className="mb-2 font-sans text-[11px] uppercase tracking-[0.14em]" style={{ color: '#a8e0a0' }}>Улучшились</p>
+          <div className="flex flex-col gap-1.5">{improved.map((s) => <DynRow key={s.key} s={s} />)}</div>
+        </div>
+      )}
+      {stable.length > 0 && (
+        <div>
+          <p className="mb-2 font-sans text-[11px] uppercase tracking-[0.14em]" style={{ color: 'var(--ink-muted)' }}>Без изменений</p>
+          <div className="flex flex-col gap-1.5">{stable.map((s) => <DynRow key={s.key} s={s} />)}</div>
+        </div>
+      )}
+
+      {q && q.filledCount >= 2 && (
+        <div>
+          <p className="mb-2 font-sans text-[11px] uppercase tracking-[0.14em]" style={{ color: 'var(--gold)' }}>По анкете</p>
+          <div className="flex flex-col gap-1.5">
+            {q.body.filter((b) => b.points.length >= 2).map((b) => <DynRow key={b.key} s={b} />)}
+          </div>
+          {q.symptoms && (
+            <div className="mt-3 font-sans text-[13px]">
+              <p className="text-white">
+                Симптомы: {q.symptoms.prevCount} → {q.symptoms.currCount}{' '}
+                <span style={{ color: DYN_TREND[q.symptoms.currCount < q.symptoms.prevCount ? 'improved' : q.symptoms.currCount > q.symptoms.prevCount ? 'worsened' : 'stable'].color }}>
+                  {DYN_TREND[q.symptoms.currCount < q.symptoms.prevCount ? 'improved' : q.symptoms.currCount > q.symptoms.prevCount ? 'worsened' : 'stable'].sign}
+                </span>
+              </p>
+              {q.symptoms.gone.length > 0 && <p style={{ color: '#a8e0a0' }}>ушли: {q.symptoms.gone.join(', ')}</p>}
+              {q.symptoms.appeared.length > 0 && <p style={{ color: '#ff9a8a' }}>появились: {q.symptoms.appeared.join(', ')}</p>}
+            </div>
+          )}
+          {q.changes.length > 0 && (
+            <ul className="mt-3 flex list-none flex-col gap-1 p-0">
+              {q.changes.map((c) => (
+                <li key={c.key} className="flex items-baseline justify-between gap-3 font-sans text-[13px]">
+                  <span style={{ color: 'var(--ink-dim)' }}>{c.label}</span>
+                  <span style={{ color: DYN_TREND[c.trend].color }}>
+                    <span style={{ color: 'var(--ink-muted)' }}>{c.prevLabel} → </span>
+                    {c.currLabel} {DYN_TREND[c.trend].sign}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   )

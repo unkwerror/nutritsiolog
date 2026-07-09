@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import PDFDocument from 'pdfkit'
 import type { UserDetail } from './schemas.js'
+import type { DynamicsView } from '../profile/service.js'
 
 // Шрифты лежат в api/assets/fonts. import.meta.url указывает на этот файл и в dev
 // (src/modules/admin/pdf.ts), и в prod (dist/modules/admin/pdf.js) — оба на одну
@@ -182,10 +183,50 @@ function answerText(key: string, raw: unknown): string | null {
     return MAPS[key]?.[v] ?? v
 }
 
+// ── Динамика: тренды и спарклайны ────────────────────────────────────────────
+
+type TrendDir = 'improved' | 'worsened' | 'stable'
+const TREND_PDF: Record<TrendDir, { arrow: string; color: string }> = {
+    improved: { arrow: '↗', color: COLOR.info },
+    worsened: { arrow: '↘', color: COLOR.critical },
+    stable: { arrow: '→', color: COLOR.muted },
+}
+
+type SeriesLike = {
+    points: Array<{ date: string; value: number }>
+    optimumMin: number | null
+    optimumMax: number | null
+}
+
+// Та же семантика, что на фронте/бэке: «улучшился» = дистанция до оптимума меньше
+function seriesTrend(s: SeriesLike): TrendDir {
+    const n = s.points.length
+    if (n < 2 || (s.optimumMin === null && s.optimumMax === null)) return 'stable'
+    const dist = (v: number) =>
+        s.optimumMin !== null && v < s.optimumMin
+            ? s.optimumMin - v
+            : s.optimumMax !== null && v > s.optimumMax
+              ? v - s.optimumMax
+              : 0
+    const dPrev = dist(s.points[n - 2]!.value)
+    const dCurr = dist(s.points[n - 1]!.value)
+    const width =
+        s.optimumMin !== null && s.optimumMax !== null
+            ? Math.abs(s.optimumMax - s.optimumMin)
+            : Math.abs(s.optimumMin ?? s.optimumMax ?? 1) || 1
+    if (Math.abs(dPrev - dCurr) <= width * 0.02) return 'stable'
+    return dCurr < dPrev ? 'improved' : 'worsened'
+}
+
+function fmtNum(n: number): string {
+    return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '')
+}
+
 /** Рендерит нутрициологический профиль пользователя в PDF (анкета + анализы + рекомендации). */
 export function buildProfilePdf(
     data: UserDetail,
-    answers: Record<string, unknown> | null
+    answers: Record<string, unknown> | null,
+    dynamics?: DynamicsView | null
 ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const u = data.user
@@ -395,6 +436,186 @@ export function buildProfilePdf(
                     doc.font(FONT.sans).fontSize(9.5).fillColor(COLOR.ink)
                     doc.text(fitText(m.name, textX - left - 22), left, top, { lineBreak: false })
                     doc.y = top + 15 // фиксированная высота строки маркера
+                }
+            }
+        }
+
+        // ── Динамика ─────────────────────────────────────────────────────────
+        // Векторный спарклайн: полоса оптимума + линия значений + точки.
+        const sparkline = (s: SeriesLike, w: number, h: number) => {
+            ensure(h + 14)
+            const x0 = left
+            const y0 = doc.y
+            const values = s.points.map((p) => p.value)
+            let lo = Math.min(...values, ...(s.optimumMin !== null ? [s.optimumMin] : []))
+            let hi = Math.max(...values, ...(s.optimumMax !== null ? [s.optimumMax] : []))
+            if (lo === hi) {
+                lo -= Math.abs(lo) * 0.1 || 1
+                hi += Math.abs(hi) * 0.1 || 1
+            }
+            const pad = (hi - lo) * 0.12
+            lo -= pad
+            hi += pad
+            const px = (i: number) => x0 + 4 + (i / (s.points.length - 1)) * (w - 8)
+            const py = (v: number) => y0 + 4 + (1 - (v - lo) / (hi - lo)) * (h - 8)
+
+            // полоса оптимума
+            if (s.optimumMin !== null || s.optimumMax !== null) {
+                const bt = s.optimumMax !== null ? py(Math.min(s.optimumMax, hi)) : y0 + 4
+                const bb = s.optimumMin !== null ? py(Math.max(s.optimumMin, lo)) : y0 + h - 4
+                doc.save()
+                    .rect(x0, bt, w, Math.max(bb - bt, 0))
+                    .fillOpacity(0.12)
+                    .fill(COLOR.sage)
+                    .restore()
+            }
+            // линия
+            doc.save().strokeColor(COLOR.forest).lineWidth(1.2)
+            s.points.forEach((p, i) => {
+                if (i === 0) doc.moveTo(px(i), py(p.value))
+                else doc.lineTo(px(i), py(p.value))
+            })
+            doc.stroke().restore()
+            // точки: в оптимуме — sage, вне — warning
+            const inBand = (v: number) =>
+                (s.optimumMin === null || v >= s.optimumMin) &&
+                (s.optimumMax === null || v <= s.optimumMax)
+            s.points.forEach((p, i) => {
+                doc.circle(px(i), py(p.value), i === s.points.length - 1 ? 2.4 : 1.8).fill(
+                    inBand(p.value) ? COLOR.sage : COLOR.warning
+                )
+            })
+            // даты первой/последней точки
+            doc.font(FONT.sans).fontSize(7).fillColor(COLOR.muted)
+            doc.text(fmtDate(new Date(s.points[0]!.date)), x0, y0 + h + 2, { lineBreak: false })
+            const lastLabel = fmtDate(new Date(s.points[s.points.length - 1]!.date))
+            doc.text(lastLabel, x0 + w - doc.widthOfString(lastLabel), y0 + h + 2, {
+                lineBreak: false,
+            })
+            doc.y = y0 + h + 14
+        }
+
+        // Строка динамики: «имя … было → стало ↗» (+ опциональный спарклайн)
+        const dynRow = (name: string, s: SeriesLike, unit: string | null, withChart: boolean) => {
+            const n = s.points.length
+            const last = s.points[n - 1]!
+            const prev = s.points[n - 2]!
+            const t = TREND_PDF[seriesTrend(s)]
+            ensure(withChart ? 66 : 16)
+            const top = doc.y
+            const valueText =
+                `${fmtNum(prev.value)} → ${fmtNum(last.value)} ${unit ?? ''}`.trim() + ` ${t.arrow}`
+            doc.font(FONT.sansBold).fontSize(9.5).fillColor(t.color)
+            const tw = doc.widthOfString(valueText)
+            doc.text(valueText, left + width - tw, top, { lineBreak: false })
+            doc.font(FONT.sans).fontSize(9.5).fillColor(COLOR.ink)
+            doc.text(fitText(name, width - tw - 22), left, top, { lineBreak: false })
+            doc.y = top + 15
+            if (withChart) sparkline(s, Math.min(width, 260), 34)
+        }
+
+        const multiSeries = (dynamics?.series ?? []).filter((s) => s.points.length >= 2)
+        const qd = dynamics?.questionnaire ?? null
+        const hasDynamics = multiSeries.length > 0 || (qd !== null && qd.filledCount >= 2)
+
+        if (hasDynamics) {
+            sectionTitle('Динамика')
+
+            if (dynamics?.summary) {
+                const sm = dynamics.summary
+                const parts: string[] = []
+                if (sm.improved > 0) parts.push(`${sm.improved} улучшилось`)
+                if (sm.worsened > 0) parts.push(`${sm.worsened} требует внимания`)
+                if (sm.stable > 0) parts.push(`${sm.stable} без изменений`)
+                doc.font(FONT.sans)
+                    .fontSize(9.5)
+                    .fillColor(COLOR.body)
+                    .text(
+                        `Сравнение с замером от ${fmtDate(new Date(sm.previousDate))}: ${parts.join(' · ')}.`,
+                        left,
+                        doc.y,
+                        { width }
+                    )
+                doc.moveDown(0.5)
+            }
+
+            const worsenedS = multiSeries.filter((s) => seriesTrend(s) === 'worsened')
+            const improvedS = multiSeries.filter((s) => seriesTrend(s) === 'improved')
+
+            if (worsenedS.length > 0) {
+                doc.font(FONT.sansBold)
+                    .fontSize(8)
+                    .fillColor(COLOR.critical)
+                    .text('ТРЕБУЮТ ВНИМАНИЯ', left, doc.y, { characterSpacing: 1 })
+                doc.moveDown(0.3)
+                // с графиками — нутрициологу важно видеть траекторию ухудшения
+                for (const s of worsenedS) dynRow(s.display, s, s.unit, true)
+            }
+            if (improvedS.length > 0) {
+                doc.moveDown(0.2)
+                doc.font(FONT.sansBold)
+                    .fontSize(8)
+                    .fillColor(COLOR.sage)
+                    .text('УЛУЧШИЛИСЬ', left, doc.y, { characterSpacing: 1 })
+                doc.moveDown(0.3)
+                for (const s of improvedS) dynRow(s.display, s, s.unit, false)
+            }
+
+            // Анкета: тело + симптомы + изменившиеся ответы
+            if (qd && qd.filledCount >= 2) {
+                doc.moveDown(0.2)
+                doc.font(FONT.sansBold)
+                    .fontSize(8)
+                    .fillColor(COLOR.sage)
+                    .text('ПО АНКЕТЕ', left, doc.y, { characterSpacing: 1 })
+                doc.moveDown(0.3)
+
+                for (const b of qd.body.filter((x) => x.points.length >= 2)) {
+                    // вес — с графиком (ключевая метрика для ЦА), остальное строками
+                    dynRow(b.display, b, b.unit || null, b.key === 'weight')
+                }
+
+                if (qd.symptoms) {
+                    const sy = qd.symptoms
+                    ensure(30)
+                    const symTrend: TrendDir =
+                        sy.currCount < sy.prevCount
+                            ? 'improved'
+                            : sy.currCount > sy.prevCount
+                              ? 'worsened'
+                              : 'stable'
+                    doc.font(FONT.sans)
+                        .fontSize(9.5)
+                        .fillColor(COLOR.ink)
+                        .text(
+                            `Симптомы: ${sy.prevCount} → ${sy.currCount} ${TREND_PDF[symTrend].arrow}`,
+                            left,
+                            doc.y
+                        )
+                    if (sy.gone.length > 0)
+                        doc.font(FONT.sans)
+                            .fontSize(8.5)
+                            .fillColor(COLOR.sage)
+                            .text(`ушли: ${sy.gone.join(', ')}`, left, doc.y, { width })
+                    if (sy.appeared.length > 0)
+                        doc.font(FONT.sans)
+                            .fontSize(8.5)
+                            .fillColor(COLOR.critical)
+                            .text(`появились: ${sy.appeared.join(', ')}`, left, doc.y, { width })
+                    doc.moveDown(0.3)
+                }
+
+                for (const c of qd.changes) {
+                    ensure(16)
+                    const top = doc.y
+                    const t = TREND_PDF[c.trend]
+                    const valueText = `${c.prevLabel} → ${c.currLabel} ${t.arrow}`
+                    doc.font(FONT.sans).fontSize(9).fillColor(t.color)
+                    const tw = doc.widthOfString(valueText)
+                    doc.text(valueText, left + width - tw, top, { lineBreak: false })
+                    doc.font(FONT.sans).fontSize(9).fillColor(COLOR.muted)
+                    doc.text(fitText(c.label, width - tw - 22), left, top, { lineBreak: false })
+                    doc.y = top + 14
                 }
             }
         }
