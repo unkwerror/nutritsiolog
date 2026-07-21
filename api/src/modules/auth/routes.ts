@@ -123,7 +123,9 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
         },
         async (request, reply) => {
             const service = new AuthService(new UsersRepository(request.server.db), sms)
-            const { isNewUser } = await service.requestOtp(request.body)
+            const { isNewUser } = await service.requestOtp(request.body, {
+                requestId: request.id,
+            })
             return reply.code(200).send({ isNewUser })
         }
     )

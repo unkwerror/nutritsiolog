@@ -7,6 +7,7 @@ import { type SmsPort } from '../../core/sms/index.js'
 import { type RequestOtpBody, type VerifyOtpBody, type RegisterBody } from './schemas.js'
 
 type ChannelInput = { channel: 'email'; email: string } | { channel: 'phone'; phone: string }
+type DeliveryContext = { requestId?: string }
 
 export class AuthService {
     // SmsPort — через конструктор (решение 027), создаётся в composition root
@@ -17,7 +18,7 @@ export class AuthService {
 
     // Разворачивает union-канал в единый вид: ключ OTP в Redis, способ
     // доставки кода и поиск пользователя по идентификатору канала.
-    private resolveChannel(data: ChannelInput) {
+    private resolveChannel(data: ChannelInput, ctx: DeliveryContext = {}) {
         if (data.channel === 'email') {
             const email = data.email.toLowerCase()
             return {
@@ -29,16 +30,24 @@ export class AuthService {
         const phone = data.phone // уже нормализован в E.164 (PhoneRuSchema)
         return {
             key: `phone:${phone}`,
+            // ≤70 символов — одна кириллическая SMS-часть (не дробится, не дорожает)
             deliver: (code: string) =>
-                this.sms.send(phone, `Ваш код: ${code}. Никому не сообщайте его.`),
+                this.sms.send(
+                    phone,
+                    `Нутрициолог: код авторизации ${code}. Никому не сообщайте его.`,
+                    ctx
+                ),
             find: () => this.repo.findByPhone(phone),
         }
     }
 
-    async requestOtp(data: RequestOtpBody): Promise<{ isNewUser: boolean }> {
-        const ch = this.resolveChannel(data)
+    async requestOtp(
+        data: RequestOtpBody,
+        ctx: DeliveryContext = {}
+    ): Promise<{ isNewUser: boolean }> {
+        const ch = this.resolveChannel(data, ctx)
         const existing = await ch.find()
-        await issueOtp(ch.key, ch.deliver)
+        await issueOtp(ch.key, ch.deliver, ctx)
         return { isNewUser: !existing }
     }
 

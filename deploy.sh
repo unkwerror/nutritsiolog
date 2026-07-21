@@ -32,6 +32,11 @@ npm run seed
 echo "==> Pruning API dev dependencies..."
 npm prune --omit=dev
 
+# npm prune переписывает package-lock.json (удаляет optional-записи) и пачкает
+# рабочее дерево — следующий git pull может упереться в конфликт. Возвращаем как в git.
+echo "==> Restoring lockfile after prune..."
+git checkout -- package-lock.json
+
 # ── Frontend (Next.js) ────────────────────────────────────────────────────────
 FRONT_DIR="/home/mun/nutritsiolog/app"
 cd "$FRONT_DIR"

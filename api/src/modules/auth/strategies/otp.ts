@@ -1,5 +1,6 @@
 import { redis } from '../../../core/redis.js'
 import { RateLimitError } from '../../../core/errors.js'
+import logger from '../../../core/logger.js'
 
 // Общая OTP-механика для любого канала (email / SMS): генерация, лимиты,
 // проверка. Идентификатор — opaque-ключ вида `email:{addr}` / `phone:{+7…}`,
@@ -18,9 +19,14 @@ const otpKey = (id: string) => `otp:${id}`
 const rateKey = (id: string) => `otp_rate:${id}`
 const attemptsKey = (id: string) => `otp_attempts:${id}`
 
+export interface OtpIssueContext {
+    requestId?: string
+}
+
 export async function issueOtp(
     id: string,
-    deliver: (code: string) => Promise<void>
+    deliver: (code: string) => Promise<void>,
+    ctx: OtpIssueContext = {}
 ): Promise<void> {
     const count = await redis.incr(rateKey(id))
     if (count === 1) await redis.expire(rateKey(id), RATE_TTL_SEC)
@@ -33,7 +39,17 @@ export async function issueOtp(
     await redis.del(attemptsKey(id))
     await redis.setex(otpKey(id), OTP_TTL_SEC, code)
 
-    await deliver(code)
+    // Доставка не блокирует HTTP-ответ: пользователь сразу видит «код отправлен»,
+    // вызов провайдера стартует немедленно в фоне. Ошибка доставки — только в лог:
+    // код уже в Redis, пользователь может запросить повторную отправку.
+    const scheduledAt = Date.now()
+    const log = logger.child({ requestId: ctx.requestId, otpId: id })
+    log.info('otp delivery scheduled')
+    void deliver(code)
+        .then(() => log.info({ deliverMs: Date.now() - scheduledAt }, 'otp delivery finished'))
+        .catch((err: unknown) =>
+            log.error({ err, deliverMs: Date.now() - scheduledAt }, 'otp delivery failed')
+        )
 }
 
 // Атомарный учёт попыток через INCR: параллельные verify-запросы не могут
